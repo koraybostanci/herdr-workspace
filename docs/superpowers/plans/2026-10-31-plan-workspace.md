@@ -68,8 +68,8 @@
 - [x] Document Tasks syntax/evidence, file-view behavior, review workflow, and unsupported delivery states. Refresh hashes with `node scripts/update-bundle.mjs`.
 - [x] Run `npm test`, `npm run test:clean-install`, and `npm run check:privacy`. All must exit 0.
 - [x] Run `herdr-app check` for owned affected mods. After verification, install into local Herdr as authorized at plan review, without switching layouts or restarting sessions. Inspect target rendering if a safe native preview is available; otherwise state that native checks do not verify pixels or interactions.
-- [ ] Review the scoped diff for regressions and run final verification after fixes. Inspect `git diff --stat` and staged diff; stage only task-owned changes and commit without attribution trailers.
-- [ ] Check `gh label list`, push the feature branch, and create a draft PR with the required Summary/Changes format and exactly one matching label. Leave merging to the user.
+- [x] Review the scoped diff for regressions and run final verification after fixes. Inspect `git diff --stat` and staged diff; stage only task-owned changes and commit without attribution trailers.
+- [x] Check `gh label list`, push the feature branch, and create a draft PR with the required Summary/Changes format and one matching label when available. Leave merging to the user.
 
 ## Verification record
 
@@ -77,3 +77,4 @@
 - Clean export/install/uninstall and privacy checks passed. Native Plan and session-tabs load checks passed.
 - Scoped local deployment preserves the existing custom layout and unrelated mods, retains legacy helper setup, and backs up changed files. Direct delivery remains gated; no feedback was sent during verification.
 - Live pointer/keyboard and visual-state verification remains incomplete: macOS Accessibility/Screen Recording permissions were unavailable. Automated boundary tests do not replace those checks.
+- Draft PR: https://github.com/koraybostanci/herdr-workspace/pull/2. No label was applied because none of the repository's labels match the configured PR-label table.
