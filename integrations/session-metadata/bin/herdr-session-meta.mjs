@@ -61,29 +61,6 @@ async function peers(runtime) {
   const config = await readJson(join(runtime.root, "peers.json"));
   return config?.owner === OWNER && Array.isArray(config.peers) ? config.peers : [];
 }
-async function syncState(runtime) {
-  const uid = process.getuid();
-  const result = await runtime.run("local", "launchctl", ["print", `gui/${uid}/local.herdr-session-title-sync`]);
-  const disabled = await runtime.run("local", "launchctl", ["print-disabled", `gui/${uid}`]);
-  if (disabled.code !== 0) throw new Error("Cannot determine old sync state");
-  const off = /"local\.herdr-session-title-sync"\s*=>\s*true/.test(disabled.stdout);
-  return { enabled: !off, loaded: result.code === 0 };
-}
-async function syncActions(runtime) {
-  const domain = `gui/${process.getuid()}`, service = `${domain}/local.herdr-session-title-sync`;
-  const plist = join(runtime.env.HOME, "Library/LaunchAgents/local.herdr-session-title-sync.plist");
-  return {
-    disableSync: async () => {
-      if ((await runtime.run("local", "launchctl", ["disable", service])).code !== 0) return false;
-      if ((await runtime.run("local", "launchctl", ["print", service])).code === 0 && (await runtime.run("local", "launchctl", ["bootout", service])).code !== 0) return false;
-      const state = await syncState(runtime); return !state.enabled && !state.loaded;
-    },
-    restoreSync: async () => {
-      if ((await runtime.run("local", "launchctl", ["enable", service])).code !== 0) throw new Error("Could not restore old sync");
-      if ((await runtime.run("local", "launchctl", ["print", service])).code !== 0 && (await runtime.run("local", "launchctl", ["bootstrap", domain, plist])).code !== 0) throw new Error("Could not restore old sync");
-    },
-  };
-}
 export async function main(argv = process.argv.slice(2), runtime = null) {
   if (!runtime) {
     const appHome = argument(argv, "app-home"), stateRoot = argument(argv, "state-root");
@@ -95,33 +72,7 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
   let output;
   if (command === "doctor") output = { owner: OWNER, mode: await runtime.store.activationMode(), bindings: (await runtime.store.listBindings()).length,
     verification: await readJson(join(runtime.root, "verification.json")), configuredPeers: (await peers(runtime)).map(p => p.id) };
-  else if (command === "install") {
-    const { planInstall, applyInstall, hashText } = await import("../src/setup.mjs");
-    const opencodePath = join(runtime.env.XDG_CONFIG_HOME ?? join(runtime.env.HOME, ".config"), "opencode/cli.json");
-    const claudePath = join(runtime.env.CLAUDE_CONFIG_DIR ?? join(runtime.env.HOME, ".claude"), "settings.json");
-    const read = path => readFile(path, "utf8").catch(e => { if (e.code === "ENOENT") return "{}\n"; throw e; });
-    const state = await syncState(runtime);
-    const plan = planInstall({ opencode: await read(opencodePath), claude: await read(claudePath) }, { home: runtime.env.HOME, appHome: runtime.appHome,
-      node: process.execPath, stateRoot: runtime.root, viewFile: runtime.store.viewFile, opencodePath, claudePath, syncWasEnabled: state.enabled });
-    if (argv.includes("--dry-run")) output = { edits: plan.edits.map(e => ({ path: e.path, beforeHash: e.beforeHash, ownedEntries: e.ownedEntries })), mode: "observe", syncWasEnabled: plan.syncWasEnabled, activationRequirements: plan.activationRequirements };
-    else {
-      const evidence = await readJson(join(runtime.root, "verification.json"));
-      if (evidence?.owner !== OWNER) throw new Error("Record capability verification before installing");
-      const manifest = await applyInstall(plan, Object.fromEntries(plan.edits.map(e => [e.path, e.beforeHash])), evidence.gates ?? {});
-      output = { manifest: manifest.manifestPath, phase: manifest.phase, activationRequirements: manifest.activationRequirements };
-    }
-  } else if (command === "activate" || command === "rollback") {
-    const manifest = await readJson(argument(argv, "manifest"));
-    if (!manifest || manifest.owner !== OWNER || !manifest.manifestPath?.startsWith(join(runtime.root, "installs") + "/")) throw new Error("Invalid install manifest");
-    const { activateInstall, rollbackInstall } = await import("../src/setup.mjs");
-    if ((await peers(runtime)).length) throw new Error("Configured peer activation/rollback must be verified on each host before cutover");
-    const actions = await syncActions(runtime);
-    if (command === "activate") {
-      const evidence = await readJson(join(runtime.root, "verification.json"));
-      if (evidence?.owner !== OWNER || evidence.installId !== manifest.id) throw new Error("Verification must match the install manifest");
-      output = await activateInstall(manifest, { ...evidence.gates, ...actions });
-    } else { await rollbackInstall(manifest, actions); output = { phase: "rolled-back" }; }
-  } else if (command === "auto-name" && argv.includes("--resume")) {
+  else if (command === "auto-name" && argv.includes("--resume")) {
     const value = JSON.parse(argument(argv, "session"));
     const key = Array.isArray(value) ? Object.fromEntries(["host", "authority", "harness", "id"].map((k, i) => [k, value[i]])) : value;
     const record = await runtime.store.read(key);

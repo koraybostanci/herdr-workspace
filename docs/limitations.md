@@ -12,7 +12,7 @@ Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any 
 
 ## Behaviour that is deliberately limited
 
-- **Naming is observe-only.** The helper records titles but does not rename sessions. The old title-sync service is not installed. `session-title-sync.py` is an optional, separate helper kept for its tests. It needs Python and is never started by the installer.
+- **Naming is observe-only.** The helper records titles but does not rename sessions. No title-sync service is included or installed.
 - **Review delivery is copy-only.** Sending a review to an agent needs a delivery check for your exact installation. None ships, so Plan copies the review for you to paste.
 - No remote pairing, SSH setup, model configuration or service restart.
 - Plan shows one document per selected session. The older multi-document picker was removed on purpose. Saved comments and other document associations are kept.

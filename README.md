@@ -97,7 +97,6 @@ More in [docs/limitations.md](docs/limitations.md).
 npm ci
 (cd integrations/session-metadata && npm ci)   # helper dependencies for the source tests
 npm test                  # Node tests
-npm run test:python       # optional title-sync helper tests
 npm run test:clean-install  # install, read a plan and uninstall from a clean export
 npm run check:privacy     # source allowlist and secret scan
 ```

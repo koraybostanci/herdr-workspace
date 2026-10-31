@@ -22,7 +22,6 @@
     "layouts/",
     "mods/",
     "scripts/",
-    "session-title-sync.py",
     "src/",
     "tests/",
     "package-lock.json",

@@ -92,8 +92,6 @@ test("interrupted_apply_resumes_with_original_ownership", async t => {
   const h = await installHome(t);
   await h.write(h.claudePath, JSON.stringify({ env: { KEEP_ME: "1" } }, null, 2) + "\n");
   const original = await h.read(h.claudePath);
-  const { atomicConfigText } = await import("../integrations/session-metadata/src/plans/setup.mjs");
-  const guarded = (path, text, expected) => atomicConfigText(path, text, expected);
   // Fail partway through the harness edits: the claude file already has some hooks (and a created `hooks` object).
   let count = 0, fail = true;
   const interrupted = async (path, text, expected) => {
@@ -116,7 +114,6 @@ test("interrupted_apply_resumes_with_original_ownership", async t => {
   // Ownership flags come from the first plan, so removal restores the untouched original.
   await uninstall(receipt);
   assert.equal(await h.read(h.claudePath), original);
-  void guarded;
 });
 
 test("failed dependency install keeps recovery evidence and never reaches settings", async t => {
