@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "owner": "herdr-workspace",
+  "files": [
+    ".gitignore",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY.md",
+    "bundle-files.json",
+    "bundle.json",
+    "package.json",
+    "assets/",
+    "bin/",
+    "docs/",
+    "integrations/session-metadata/.npmrc",
+    "integrations/session-metadata/package-lock.json",
+    "integrations/session-metadata/package.json",
+    "integrations/session-metadata/bin/",
+    "integrations/session-metadata/claude/",
+    "integrations/session-metadata/opencode/",
+    "integrations/session-metadata/src/",
+    "layouts/",
+    "mods/",
+    "scripts/",
+    "session-title-sync.py",
+    "src/",
+    "tests/",
+    "package-lock.json",
+    ".npmrc"
+  ]
+}
