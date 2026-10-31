@@ -181,3 +181,18 @@ test('TUI invalidation fingerprint reads only message and completion identities,
   const tool={id:'tool_1',type:'tool',state:{status:'completed',get input(){throw Error('body scanned during fingerprint');}}};
   assert.equal(planAdapter.planMessageFingerprint('ses_A',[{id:'msg_1',type:'assistant',content:[tool]}]),'["ses_A",[["msg_1","assistant",["tool_1"]]]]');
 });
+
+test('owning TUI publishes normalized task observations once and never raw tool content',async()=>{
+  const calls=[],id=ownerProof.session.id;
+  const context={ui:{router:{current:()=>({type:'session',sessionID:id})}},client:{session:{get:async()=>({id})}},
+    data:{session:{root:x=>x,message:{list:()=>[{id:'msg_tasks',type:'assistant',time:{created:1000},content:[
+      {id:'tool_tasks',type:'tool',name:'todowrite',state:{status:'completed',input:{todos:[{id:'a',content:'Ship API',status:'in_progress'}],private:'DO NOT STORE'}}},
+      {id:'failed',type:'tool',name:'todowrite',state:{status:'error',input:{todos:[]}}},
+    ]}]}}}};
+  const rpc=async request=>{calls.push(request);return {ok:true,value:request.op==='owner-reserve'?{token:'reservation'}:ownerProof};};
+  const adapter=createOpenCodePlanAdapter(context,{rpc,scope:{host:'local',authority:'local'}});
+  await adapter.refresh();await adapter.refresh();
+  const updates=calls.filter(request=>request.op==='update-tasks');assert.equal(updates.length,1);
+  assert.deepEqual(updates[0].payload.tasks,[{id:'a',title:'Ship API',status:'in_progress'}]);
+  assert.equal(JSON.stringify(updates).includes('DO NOT STORE'),false);assert.deepEqual(updates[0].payload.session,ownerProof.session);
+});

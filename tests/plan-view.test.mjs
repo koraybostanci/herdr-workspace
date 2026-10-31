@@ -7,6 +7,7 @@ import { bindingKey, sessionKey } from '../integrations/session-metadata/src/pro
 import { registerArtifact, readArtifact } from '../integrations/session-metadata/src/plans/artifacts.mjs';
 import { saveComment, listComments, listCommentConflicts, listSubmissions, resolveCommentConflict, createSubmission } from '../integrations/session-metadata/src/plans/reviews.mjs';
 import * as deliveryApi from '../integrations/session-metadata/src/plans/delivery.mjs';
+import { readPlanTasks, recordTaskSnapshot } from '../integrations/session-metadata/src/plans/tasks.mjs';
 import { loadHerdrMod, modStorage } from './helpers/load-herdr-mod.mjs';
 import { state as native, context, render, text, find } from './helpers/herdr-runtime.mjs';
 
@@ -201,7 +202,10 @@ async function widgetFixture(t,folder='mods/plan') {
     view.client={call:async(op,payload)=>{
       calls.push({op,payload});
       try {
-        if(op==='read')return {ok:true,value:await readArtifact(payload,{...f,proof:payload.proof??f.proof,lifecycle:{verify:async()=>true}})};
+        if(op==='read'){
+          const document=await readArtifact(payload,{...f,proof:payload.proof??f.proof,lifecycle:{verify:async()=>true}});
+          return {ok:true,value:document.state==='ready'?{...document,tasks:readPlanTasks(document.artifact,document.text,document.sections,f)}:document};
+        }
         if(op==='comments')return {ok:true,value:{comments:listComments(payload,f.db),conflicts:listCommentConflicts(payload,f.db),submissions:listSubmissions(payload,f.db)}};
         if(op==='save-comment')return {ok:true,value:saveComment(payload,f.db)};
         if(op==='preview-review')return {ok:true,value:deliveryApi.previewReview(payload,f.db)};
@@ -221,7 +225,8 @@ test('native Plan reader renders the exact owned file and comments without resou
   const f=await widgetFixture(t),tree=render(f.view);
   assert.ok(text(tree).includes('# Plan\n'));
   assert.ok(find(tree,'plan-session').attributes.accessibility_label[0].includes(f.session.id));
-  assert.ok(find(tree,'plan-composer'));
+  assert.equal(find(tree,'plan-composer'),undefined,'the initial reader is not squeezed above a permanent editor');
+  find(tree,'plan-comments-toggle').attributes.on_click[0]({},context());assert.ok(find(render(f.view),'plan-composer'));
   assert.equal(f.calls.some(call=>['submit','dispatch'].includes(call.op)),false);
 });
 
@@ -358,6 +363,112 @@ test('malformed reader and review entries cannot reach native controls or hide h
   f.view.load(context());await drain();assert.doesNotThrow(()=>render(f.view));assert.equal(find(render(f.view),'plan-document'),undefined);
 });
 
+test('Plan and Tasks retain a private draft and place work under its actual phase',async t=>{
+  const f=await widgetFixture(t);await writeFile(f.artifact.path,'# Plan\n## Phase 1: Prepare\n- [x] Read\n## Phase 2: Build\n- [-] API\n');
+  f.view.load(context());await drain();f.view.composer.set_value('Keep this feedback');
+  const tab=find(render(f.view),'plan-tab-tasks');assert.ok(tab);tab.attributes.on_click[0]({},context());
+  const tree=render(f.view);assert.ok(find(tree,'plan-tasks'));
+  const phases=f.view.document.tasks.phases;
+  assert.ok(text(find(tree,'plan-phase-'+phases[0].id)).includes('Read'));
+  assert.ok(text(find(tree,'plan-phase-'+phases[1].id)).includes('API'));
+  assert.ok(text(tree).includes('In progress'));assert.equal(f.view.composer.value(),'Keep this feedback');
+  find(tree,'plan-tab-document').attributes.on_click[0]({},context());assert.ok(find(render(f.view),'plan-document'));
+  assert.equal(f.view.composer.value(),'Keep this feedback');assert.equal(f.admissions.length,0);
+});
+
+test('Tasks has a flat list without phases and a truthful empty state without tasks',async t=>{
+  const f=await widgetFixture(t);find(render(f.view),'plan-tab-tasks')?.attributes.on_click[0]({},context());
+  assert.ok(text(render(f.view)).includes('No tasks in this plan yet.'));
+  await writeFile(f.artifact.path,'# Plan\n- [ ] Build API\n');f.view.load(context());await drain();
+  const tree=render(f.view);assert.ok(find(tree,'plan-task-list'));assert.ok(text(tree).includes('Build API'));assert.equal(find(tree,'plan-phase-list'),undefined);
+});
+
+test('a section comment opens the review drawer anchored to the chosen section',async t=>{
+  const f=await widgetFixture(t),tree=render(f.view),section=f.view.sections[0];
+  const action=find(tree,'plan-comment-section-0');assert.ok(action);action.attributes.on_click[0]({},context());
+  assert.ok(find(render(f.view),'plan-composer'));assert.deepEqual(f.view.drafts.rows.get(f.view.editKey).anchor.headingPath,section.headingPath);
+  f.view.composer.set_value('Clarify this section');f.view.flush(context());await drain();
+  find(render(f.view),'plan-comments-toggle').attributes.on_click[0]({},context());assert.equal(find(render(f.view),'plan-composer'),undefined);
+  assert.ok(text(render(f.view)).some(value=>value.includes('Review (1)')));
+});
+
+test('Open Markdown splits a source-only owned file pane in the same agent tab',async t=>{
+  const f=await widgetFixture(t);f.view.composer.set_value('Keep review context');
+  const open=find(render(f.view),'plan-open-markdown');assert.ok(open);open.attributes.on_click[0]({},context());
+  const command=native.commands.find(command=>command.name==='pane.split');assert.ok(command);
+  assert.equal(command.args.pane,'pa');assert.equal(command.args.mod,'plan');assert.equal(command.args.props.file.artifactId,f.artifact.id);
+  assert.deepEqual(command.args.props.file.session,f.session);assert.equal(command.args.props.file.terminal,'t-plan');
+  native.data.allPanes.push({pane:'file-pane',terminal:null,mod:'plan',tab:'ta',focused:true});
+  native.data.focused={space:'sp',tab:'ta',pane:'file-pane',terminal:null};
+  render(f.view);await drain();assert.equal(f.view.composer.value(),'Keep review context');assert.equal(f.view.selection.owner.id,f.session.id);
+  const file=new f.view.constructor();file.init(command.args.props,context());file.client=f.view.client;
+  if(file.fileView)file.fileView.client=f.view.client;
+  await drain();render(file);await drain();const tree=render(file);
+  assert.ok(find(tree,'plan-file-source'));assert.equal(find(tree,'plan-composer'),undefined);assert.equal(find(tree,'plan-send-review'),undefined);
+  assert.ok(text(tree).includes('# Plan\n'));
+  native.data.focused={space:'sp',tab:'other',terminal:null};assert.equal(find(render(file),'plan-file-source'),undefined);
+  await file.close();
+});
+
+test('one confirmed review batches multiple section comments and the general note',async t=>{
+  const f=await widgetFixture(t);f.view.planView.entries[0].capabilities.send=true;
+  const section=f.view.sections[0];
+  saveComment({id:'section-one',session:f.session,artifactId:f.artifact.id,expectedRevision:null,text:'Section feedback',anchor:f.view.anchor(section),status:'open',documentHash:f.artifact.hash},f.db);
+  f.view.composer.set_value('Overall review note');f.view.flush(context());await drain();
+  find(render(f.view),'plan-send-review').attributes.on_click[0]({},context());await drain();
+  find(render(f.view),'plan-confirm-send').attributes.on_click[0]({},context());await drain();
+  assert.equal(f.admissions.length,1);assert.ok(f.admissions[0].text.includes('Section feedback'));assert.ok(f.admissions[0].text.includes('Overall review note'));
+});
+
+test('task-only metadata publication refreshes statuses without a Markdown revision change',async t=>{
+  const f=await widgetFixture(t);await writeFile(f.artifact.path,'# Plan\n## Phase 1: Build\n- [ ] API\n');f.view.load(context());await drain();
+  const current=f.view.document.artifact;
+  await recordTaskSnapshot({session:f.session,proof:f.proof,eventId:'live-tasks',observedAt:1000,tasks:[{id:'a',title:'API',status:'completed'}],plan:{path:current.path,documentHash:current.hash}},
+    {...f,lifecycle:{verify:async()=>true}});
+  find(render(f.view),'plan-tab-tasks').attributes.on_click[0]({},context());f.view.planView.sequence++;
+  render(f.view);await drain();assert.ok(text(render(f.view)).includes('Done'));
+});
+
+test('phase controls collapse work and open the corresponding document section',async t=>{
+  const f=await widgetFixture(t);await writeFile(f.artifact.path,'# Plan\n## Phase 1: Prepare\n- [ ] Read\n## Phase 2: Ship\n- [ ] Deploy\n');
+  f.view.load(context());await drain();find(render(f.view),'plan-tab-tasks').attributes.on_click[0]({},context());
+  const phase=f.view.document.tasks.phases[1];
+  find(render(f.view),'plan-phase-toggle-'+phase.id).attributes.on_click[0]({},context());
+  assert.equal(text(find(render(f.view),'plan-phase-'+phase.id)).includes('Deploy'),false);
+  find(render(f.view),'plan-phase-open-'+phase.id).attributes.on_click[0]({},context());
+  const tree=render(f.view);assert.ok(text(tree).some(value=>value.includes('Deploy')));assert.equal(text(tree).some(value=>value.includes('Read')),false);
+  assert.ok(find(tree,'plan-full-document'));
+});
+
+test('malformed task entries are isolated without hiding healthy phase tasks',async t=>{
+  const f=await widgetFixture(t);await writeFile(f.artifact.path,'# Plan\n## Phase 1: Build\n- [ ] API\n');f.view.load(context());await drain();
+  f.view.document.tasks.phases.push(null,{});f.view.document.tasks.phases[0].tasks.push(null,{title:123});
+  find(render(f.view),'plan-tab-tasks').attributes.on_click[0]({},context());assert.doesNotThrow(()=>render(f.view));assert.ok(text(render(f.view)).includes('API'));
+});
+
+test('editing an earlier local comment retains that exact draft through refresh',async t=>{
+  const f=await widgetFixture(t);f.view.composer.set_value('First feedback');f.view.flush(context());await drain();
+  const first=f.view.drafts.rows.get(f.view.editKey).id;
+  find(render(f.view),'plan-new-comment').attributes.on_click[0]({},context());
+  f.view.composer.set_value('Second feedback');f.view.flush(context());await drain();
+  find(render(f.view),'plan-edit-'+first).attributes.on_click[0]({},context());assert.equal(f.view.composer.value(),'First feedback');
+  f.view.load(context());await drain();assert.equal(f.view.composer.value(),'First feedback');
+  f.view.composer.set_value('Revised first feedback');f.view.flush(context());await drain();
+  const comments=listComments({session:f.session,artifactId:f.artifact.id},f.db);
+  assert.equal(comments.find(comment=>comment.id===first).text,'Revised first feedback');
+  assert.ok(comments.some(comment=>comment.text==='Second feedback'));
+});
+
+test('an unchanged metadata heartbeat preserves the frozen review confirmation',async t=>{
+  const f=await widgetFixture(t);f.view.planView.entries[0].capabilities.send=true;
+  f.view.composer.set_value('Confirm this feedback');f.view.flush(context());await drain();
+  find(render(f.view),'plan-send-review').attributes.on_click[0]({},context());await drain();const preview=f.view.preview;assert.ok(preview);
+  const renewed={...f.view.planView.entries[0].proof,verifiedAt:Date.now(),leaseUntil:Date.now()+45000};f.view.planView.entries[0].proof=renewed;
+  f.view.planView.sequence++;render(f.view);await drain();assert.equal(f.view.preview,preview);
+  find(render(f.view),'plan-confirm-send').attributes.on_click[0]({},context());await drain();assert.equal(f.admissions.length,1);
+  assert.deepEqual(f.calls.find(call=>call.op==='submit').payload.proof,renewed);
+});
+
 test('native retry of unknown delivery warns about duplicates and requires a new explicit confirmation',async t=>{
   const f=await widgetFixture(t);f.view.planView.entries[0].capabilities.send=true;
   const original=f.view.client.call;let lose=true;
@@ -374,7 +485,8 @@ test('native retry of unknown delivery warns about duplicates and requires a new
 
 test('stale native comment controls reject a switched context instead of editing or throwing for another agent',async t=>{
   const f=await widgetFixture(t),comment=saveComment({id:'old-control',session:f.session,artifactId:f.artifact.id,expectedRevision:null,text:'Keep owner A',anchor:null,status:'open',documentHash:f.artifact.hash},f.db).comment;
-  f.view.load(context());await drain();const click=find(render(f.view),'plan-edit-'+comment.id).attributes.on_click[0];
+  f.view.load(context());await drain();find(render(f.view),'plan-comments-toggle').attributes.on_click[0]({},context());
+  const click=find(render(f.view),'plan-edit-'+comment.id).attributes.on_click[0];
   native.data.focused={space:'sp',tab:'ta',terminal:'unbound'};render(f.view);
   assert.doesNotThrow(()=>click({},context()));assert.equal(f.view.editKey,null);
 });

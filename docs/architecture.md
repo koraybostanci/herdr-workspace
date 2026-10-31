@@ -30,6 +30,8 @@ Card metadata uses a legacy JSON store owned by the helper. Plan uses a separate
 The helper's store root must be initialised before Plan creates its files, or the store's owner guard refuses the folder. The installer does this in that order.
 Reviews, drafts and comments are private state. Uninstall keeps them.
 
+Plan's helper read response also contains a task outline derived from the registered Markdown. Task snapshots use separate SQLite tables scoped to the exact session. Adapters publish only normalized successful task-tool observations. A snapshot can update a plan task only with an exact path/revision and an unambiguous structural match; other observations stay Unassigned. Plan file panes reuse the owned mod in source-only mode and read the same verified artifact without creating review drafts.
+
 ## Behaviour that must not change
 
 - Spaces is 44 logical pixels. Its popup opens down from the `top_left` anchor.

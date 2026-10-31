@@ -1,10 +1,12 @@
 import { View, div, svg } from 'gpui-kit';
 import { v_flex, h_flex, Button, Popover, TextView, Textarea, TextareaState, Editor, EditorState } from 'gpui-base';
-import { spaces, agents, panes, terminals, focused, theme, settings, appHome, readTextFile, watchFolder, shared, setShared, run } from 'herdr';
+import { spaces, agents, panes, terminals, focused, theme, settings, appHome, readTextFile, watchFolder, shared, setShared, run, layout } from 'herdr';
 import { PlanClient } from './client.js';
 import { ReviewDrafts } from './drafts.js';
 import { selectPlanOwner, planAvailable, acceptPlanLoad, safePlanPresentation, allowedPlanUrl } from './model.js';
 import { sessionKey, decodeSession, decodeProof, decodeArtifact, decodeComment, decodeAnchor, decodeDelivery } from './protocol.js';
+import { renderTasks } from './task-view.js';
+import { PlanFile } from './file-view.js';
 
 const basename=path=>path?.replaceAll('\\','/').split('/').pop()??'Plan';
 const documentKey=(owner,id)=>JSON.stringify([sessionKey(owner),id]);
@@ -23,13 +25,15 @@ function sameComments(expected,actual,ownerKey,artifactId) {
 }
 
 export default class Plan extends View {
-  init(_props,cx) {
+  init(props,cx) {
+    if(props?.file){this.fileView=new PlanFile();this.fileView.init(props.file,cx);return;}
     this.client=new PlanClient();this.drafts=new ReviewDrafts(this.client);
     this.composer=TextareaState.new({placeholder:'Comment on this plan…',rows:3});this.composer.set_auto_grow(3,6);
-    this.composer.on('change',(_event,cx)=>{if(this.editKey)this.drafts.change(this.editKey,{text:this.composer.value()});cx.notify();});
+    this.composer.on('change',(_event,cx)=>{if(this.editKey){this.drafts.change(this.editKey,{text:this.composer.value()});if(this.composer.value().trim())this.commentsOpen=true;}cx.notify();});
     this.sectionFocus=cx.focus_handle();this.sectionMenuFocus=cx.focus_handle();this.sendFocus=cx.focus_handle();
     this.planView=null;this.metadataReady=false;this.selection=null;this.context=null;this.epoch=0;this.loadId=0;this.closed=false;
-    this.document=null;this.comments=[];this.submissions=[];this.sections=[];this.commentsOpen=true;this.error=null;this.loading=false;
+    this.document=null;this.comments=[];this.submissions=[];this.sections=[];this.commentsOpen=false;this.error=null;this.loading=false;
+    this.activeTab='plan';this.collapsedPhases=new Set();this.sectionView=null;this.expanded=false;
     this.composers=stored('composers');this.watched=null;this.preview=null;this.sending=false;this.readSource=false;
     this.deliveries=new Map();
     this.sourceEditors=new Map();
@@ -71,7 +75,7 @@ export default class Plan extends View {
   sync(cx) {
     const next=selectPlanOwner({...live(),planView:this.planView,previous:this.selection});
     const identity=value=>value?JSON.stringify([sessionKey(value.owner),value.proof.generation,value.space,value.tab]):null;
-    if(identity(next)!==identity(this.selection))this.epoch++;
+    if(identity(next)!==identity(this.selection)){this.epoch++;this.sectionView=null;this.commentsOpen=false;this.activeTab='plan';}
     this.selection=next?{...next,epoch:this.epoch}:null;
     const recovery=shared('session-plans.recovery');
     const recovering=recovery&&Date.now()>=(recovery.seenAt??0)&&Date.now()-(recovery.seenAt??0)<45000;
@@ -91,11 +95,31 @@ export default class Plan extends View {
       return;
     }
     const fingerprint=JSON.stringify([sessionKey(this.selection.owner),this.selection.proof.generation,this.selection.epoch,choice.id,choice.revision,choice.hash]);
-    if(fingerprint===this.fingerprint)return;
+    if(fingerprint===this.fingerprint){
+      if(this.taskSequence!==this.planView.sequence&&this.document?.state==='ready'){
+        this.taskSequence=this.planView.sequence;this.refreshTasks(cx);
+      }
+      return;
+    }
+    this.taskSequence=this.planView.sequence;
     this.fingerprint=fingerprint;this.preview=null;
     this.context={ownerKey:sessionKey(this.selection.owner),artifactId:choice.id,epoch:this.selection.epoch,loadId:++this.loadId};
     this.delivery=this.deliveries.get(documentKey(this.selection.owner,choice.id))??null;
     this.load(cx,choice);
+  }
+  refreshTasks(cx) {
+    const token=this.context&&{...this.context},selection=this.selection,request=this.taskLoadId=(this.taskLoadId??0)+1;
+    if(!token||!selection)return;
+    cx.spawn(async cx=>{
+      const response=await this.client.call('read',{session:selection.owner,proof:selection.proof,id:token.artifactId});
+      if(this.closed||request!==this.taskLoadId||!acceptPlanLoad(this.context,token))return;
+      const document=response.value;
+      if(!response.ok||!decodeArtifact(document?.artifact).ok||sessionKey(document.artifact.session)!==token.ownerKey||document.artifact.id!==token.artifactId)return;
+      if(document.state!=='ready'||document.artifact.hash!==this.document?.artifact.hash){
+        this.preview=null;this.context={...this.context,loadId:++this.loadId};this.load(cx);
+      } else this.document={...this.document,tasks:document.tasks};
+      cx.notify();
+    });
   }
   load(cx,artifact=this.document?.artifact) {
     if(!this.context||!this.selection||!artifact)return;
@@ -182,8 +206,60 @@ export default class Plan extends View {
     this.composer.focus();cx.notify();
   }
   edit(comment,cx) {
-    const row=this.drafts.select(this.selection.owner,this.document.artifact,comment);this.editKey=row.key;
-    this.composer.set_value(row.text);this.composer.focus();cx.notify();
+    const row=comment.draftKey?this.drafts.rows.get(comment.draftKey):this.drafts.select(this.selection.owner,this.document.artifact,comment);
+    if(!row)return;
+    this.drafts.active.set(row.document,row.key);this.drafts.current=row.key;this.editKey=row.key;
+    if(row.id)this.composers[row.document]=row.id;else delete this.composers[row.document];
+    localStorage.setItem('composers',JSON.stringify(this.composers));
+    this.composer.set_value(row.text);this.commentsOpen=true;this.composer.focus();cx.notify();
+  }
+  displayedComments() {
+    const artifact=this.document?.artifact;if(!artifact||!this.selection)return this.comments;
+    const rows=[...this.drafts.rows.values()].filter(row=>row.artifactId===artifact.id&&sessionKey(row.owner)===sessionKey(this.selection.owner));
+    const comments=this.comments.filter(comment=>!rows.some(row=>row.id===comment.id));
+    return [...comments,...rows.filter(row=>row.text.trim()).map(row=>({id:row.id??row.key,revision:row.revision,text:row.text,anchor:row.anchor,
+      documentHash:row.documentHash,status:row.status,draftKey:row.key}))];
+  }
+  newComment(cx,section=null) {
+    const artifact=this.document?.artifact;if(!this.selection||!artifact||this.document.state!=='ready')return;
+    let row=this.drafts.rows.get(this.editKey);
+    if(!row||row.text.trim()||row.id)row=this.drafts.newComment(this.selection.owner,artifact);
+    this.editKey=row.key;delete this.composers[row.document];localStorage.setItem('composers',JSON.stringify(this.composers));
+    this.composer.set_value(row.text);this.pickSection({section},cx);this.commentsOpen=true;cx.notify();
+  }
+  openMarkdown(cx) {
+    const current=selectPlanOwner({...live(),planView:this.planView,previous:this.selection});
+    if(!current||!this.selection||sessionKey(current.owner)!==sessionKey(this.selection.owner)||current.proof.generation!==this.selection.proof.generation)return;
+    const artifact=this.document?.artifact,pane=panes().find(pane=>pane.tab===current.tab&&pane.terminal===current.address);
+    if(!artifact||!pane||!current.artifacts.some(row=>row.id===artifact.id))return;
+    run('pane.split',{pane:pane.pane,direction:'right',mod:'plan',props:{file:{session:current.owner,artifactId:artifact.id,terminal:current.address}}});
+  }
+  toggleExpand(cx) {
+    const find=node=>node?.id==='panel'?node:(node?.children??[]).map(find).find(Boolean);
+    const panel=find(layout());
+    if(!this.expanded)this.panelWidth=panel?.size?.px??368;
+    this.expanded=!this.expanded;run('layout.resize',{id:'panel',px:this.expanded?800:this.panelWidth});cx.notify();
+  }
+  showSection(phase,cx) {
+    const index=this.sections.findIndex(section=>section.occurrence===phase.occurrence&&JSON.stringify(section.headingPath)===JSON.stringify(phase.headingPath));
+    if(index<0)return;this.sectionView=index;this.activeTab='plan';cx.notify();
+  }
+  renderDocument(t) {
+    const selected=this.sections[this.sectionView],sections=this.sections.map((section,index)=>({...section,index}));
+    const visible=selected?sections.filter(section=>section.start>=selected.start&&section.start<selected.end):sections;
+    const markdown=(id,text)=>TextView.markdown(id,text).selectable(true).scrollable(false).w_full().on_link_click((url,cx)=>{if(allowedPlanUrl(url))cx.open_url(url);});
+    return v_flex().id('plan-reader-scroll-'+this.context?.ownerKey+'-'+this.document.artifact.id).flex_1().min_h(0).p(12).gap(14).overflow_y_scrollbar()
+      .when(Boolean(selected),part=>part.child(this.button('plan-full-document','Show full plan',cx=>{this.sectionView=null;cx.notify();},t)))
+      .when(!sections.length,part=>part.child(markdown('plan-document',this.document.text)))
+      .when(!selected&&Boolean(sections[0]?.start),part=>part.child(markdown('plan-preamble',this.document.text.slice(0,sections[0].start))))
+      .children(visible.map(section=>{
+        const end=sections[section.index+1]?.start??this.document.text.length;
+        const content=this.document.text.slice(section.start,end),first=content.indexOf('\n')+1||content.length;
+        return v_flex().id('plan-section-'+section.index).gap(6)
+          .child(h_flex().gap(8).items_start().child(div().flex_1().min_w(0).child(markdown(section.index===0?'plan-document':'plan-heading-'+section.index,content.slice(0,first))))
+            .child(this.button('plan-comment-section-'+section.index,'Comment',cx=>this.newComment(cx,section),t).tooltip(`Comment on ${section.headingPath.join(' / ')}`)))
+          .when(first<content.length,part=>part.child(markdown('plan-section-body-'+section.index,content.slice(first))));
+      }));
   }
   resolveConflict(row,choice,cx) {
     cx.spawn(async cx=>{await this.drafts.resolve(row.key,choice);if(this.editKey===row.key&&!row.dirty)this.composer.set_value(row.text);this.rememberComposers();this.publishErrors();cx.notify();});
@@ -218,9 +294,9 @@ export default class Plan extends View {
   confirmReview(cx) {
     const preview=this.preview;
     if(!preview||this.sending||!acceptPlanLoad(this.context,preview.token)||!this.selection?.capabilities.send)return;
-    this.sending=true;
+    const proof=this.selection.proof;this.sending=true;
     cx.spawn(async cx=>{
-      const submitted=await this.client.call('submit',{session:preview.selection.owner,proof:preview.selection.proof,artifactId:preview.artifact.id,
+      const submitted=await this.client.call('submit',{session:preview.selection.owner,proof,artifactId:preview.artifact.id,
         documentHash:preview.documentHash,comments:preview.refs,confirmed:true,confirmedEarlierRevision:preview.earlierRevision===true,
         retryOf:preview.retryOf??undefined,confirmedRetry:Boolean(preview.retryOf)});
       const batch=submitted.value;
@@ -235,6 +311,7 @@ export default class Plan extends View {
         if(decodeDelivery(delivery).ok&&delivery.requestId===submitted.value.requestId) {
           this.deliveries.set(documentKey(preview.selection.owner,preview.artifact.id),delivery);
           if(acceptPlanLoad(this.context,preview.token))this.delivery=delivery;
+          if(acceptPlanLoad(this.context,preview.token))this.submissions.unshift({...batch,delivery});
         }
       } else if(acceptPlanLoad(this.context,preview.token))this.error=submitted.reason??'invalid-submission-response';
       this.sending=false;if(acceptPlanLoad(this.context,preview.token)){this.preview=null;this.sendFocus.focus();}cx.notify();
@@ -253,37 +330,51 @@ export default class Plan extends View {
     });
   }
   render(cx) {
+    if(this.fileView)return this.fileView.render(cx);
     this.sync(cx);const t=theme(),row=this.drafts.rows.get(this.editKey),recovery=this.recoveryKey&&row;
     const artifact=recovery?row.artifact:this.document?.artifact;
     const owner=recovery?row.owner:this.selection?.owner;
     const ready=this.document?.state==='ready'&&!recovery;
+    const comments=this.displayedComments(),accepted=new Set(this.submissions.filter(sub=>sub.delivery.state==='accepted').flatMap(sub=>sub.comments??[]).map(comment=>comment.id+':'+comment.revision));
+    const reviewCount=comments.filter(comment=>comment.status==='open'&&comment.text.trim()&&!accepted.has(comment.id+':'+comment.revision)).length;
     const label=artifact?.kind==='design'?'Design':'Implementation plan';
     const failure=this.error&&({'save-comments-first':'Save or resolve the selected comments first.','no-new-comments':'Add a new comment before reviewing.'}[this.error]??'This plan is unavailable. Retry to reload it.');
     return v_flex().id('session-plan').size_full().min_h(0).min_w(0).rounded(10).overflow_hidden().bg(t.background).border(1).border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(40).px(12).gap(8).flex_none().items_center().border_b(1).border_color(t.border)
         .child(svg('mods/plan/plan.svg').size(15).text_color(t.muted)).child(div().font_medium().child(recovery?'Draft recovery':'Plan'))
         .child(div().flex_1())
+        .when(ready,part=>part.child(this.button('plan-open-markdown','Open Markdown',cx=>this.openMarkdown(cx),t)))
+        .when(!recovery,part=>part.child(this.button('plan-expand',this.expanded?'Collapse':'Expand',cx=>this.toggleExpand(cx),t)))
+        )
+      .when(ready,el=>el.child(h_flex().px(12).py(6).gap(6).items_center().border_b(1).border_color(t.border).flex_none()
+        .child(this.button('plan-tab-document','Plan',cx=>{this.activeTab='plan';cx.notify();},t).selected(this.activeTab==='plan').bg(this.activeTab==='plan'?t.selected:t.background))
+        .child(this.button('plan-tab-tasks','Tasks',cx=>{this.activeTab='tasks';cx.notify();},t).selected(this.activeTab==='tasks').bg(this.activeTab==='tasks'?t.selected:t.background))
+        .child(div().flex_1())
         .when(ready&&this.presentation?.mode==='markdown',part=>part.child(this.button('plan-reader-mode',this.readSource?'Formatted':'Source',cx=>this.toggleReader(cx),t)))
         .child(this.button('plan-refresh','Refresh',cx=>{this.reloadMetadata(cx);if(this.context){this.context={...this.context,loadId:++this.loadId};this.load(cx);}},t)))
+      )
       .when(Boolean(owner),el=>el.child(v_flex().px(12).py(8).gap(4).flex_none().border_b(1).border_color(t.border)
         .child(div().id('plan-session').text_size(11.5).text_color(t.muted).truncate().accessibility_label(`Session ${owner.id}, ${owner.authority}, ${owner.host}`)
           .tooltip(`${owner.id} · ${owner.authority} · ${owner.host}`).child(recovery?row.title:this.selection.title))
         .when(Boolean(artifact),part=>part.child(div().text_size(11).text_color(t.muted).truncate().tooltip(`${artifact.path}\n${artifact.host} · SHA-256 ${artifact.hash}`).child(`${label} · ${basename(artifact.path)}`)))))
       .when(Boolean(failure),el=>el.child(div().px(12).py(8).text_size(12).text_color(t.blocked).child(failure)))
-      .when(!recovery,el=>el.child(v_flex().id('plan-reader').flex_1().min_h(90).min_w(0)
-        .when(ready&&this.presentation?.mode==='markdown'&&!this.readSource,part=>part.child(v_flex().id('plan-reader-scroll-'+this.context?.ownerKey+'-'+artifact?.id).flex_1().min_h(0).p(12).overflow_y_scrollbar()
-          .child(TextView.markdown('plan-document',this.document.text).selectable(true).scrollable(false).w_full().on_link_click((url,cx)=>{if(allowedPlanUrl(url))cx.open_url(url);}))))
+      .when(!recovery&&this.activeTab==='tasks'&&ready,el=>el.child(renderTasks({value:this.document.tasks,collapsed:this.collapsedPhases,t,button:this.button.bind(this),
+        onToggle:(id,cx)=>{if(this.collapsedPhases.has(id))this.collapsedPhases.delete(id);else this.collapsedPhases.add(id);cx.notify();},onSection:(phase,cx)=>this.showSection(phase,cx)})))
+      .when(!recovery&&(this.activeTab==='plan'||!ready),el=>el.child(v_flex().id('plan-reader').flex_1().min_h(90).min_w(0)
+        .when(ready&&this.presentation?.mode==='markdown'&&!this.readSource,part=>part.child(this.renderDocument(t)))
         .when(ready&&(this.presentation?.mode==='source'||this.readSource),part=>part.child(div().id('plan-source-note').px(12).py(5).text_size(11).text_color(t.muted).child(this.presentation?.mode==='source'?'Source view · embedded markup is disabled':'Read-only source · select and copy text here'))
           .child(Editor.new(this.sourceEditor).id('plan-source').flex_1().min_h(0)))
         .when(!ready,part=>part.child(div().p(12).text_size(12).text_color(t.muted).child(this.loading?'Loading plan…':this.document?.state==='missing'?'This plan file is missing. Your comments are kept.':this.document?.state==='needs-verification'?'The file target changed. Register it again before review.':'Select an agent with a registered plan.')))))
       .when(Boolean(row),el=>el.child(v_flex().flex_none().min_w(0).border_t(1).border_color(t.border).bg(t.surface).px(12).py(8).gap(7)
-        .child(h_flex().items_center().gap(8).child(this.button('plan-comments-toggle',`Review comments (${this.comments.length})`,cx=>{this.commentsOpen=!this.commentsOpen;cx.notify();},t))
-          .child(div().flex_1()).child(this.button('plan-new-comment','New comment',cx=>{const next=this.drafts.newComment(this.selection.owner,artifact);this.editKey=next.key;delete this.composers[next.document];localStorage.setItem('composers',JSON.stringify(this.composers));this.composer.set_value('');this.composer.focus();cx.notify();},t,Boolean(recovery))))
-        .when(this.commentsOpen,part=>part
-          .child(v_flex().max_h(120).overflow_y_scrollbar().gap(6).children(this.comments.filter(c=>c.id!==row.id).map(comment=>v_flex().id('plan-comment-'+comment.id).py(5).gap(4).border_b(1).border_color(t.border)
+        .child(h_flex().items_center().gap(8).child(this.button('plan-comments-toggle',`Review (${reviewCount})`,cx=>{this.commentsOpen=!this.commentsOpen;cx.notify();},t).pressed(this.commentsOpen).accessibility_label(`${this.commentsOpen?'Hide':'Show'} review, ${reviewCount} comments`))
+          .child(div().flex_1()).child(div().text_size(11).text_color(row.error?t.blocked:t.muted).child(row.error?'Save failed':row.pending||row.dirty?'Saving…':row.id?'Saved':'Private draft')))
+        .when(this.commentsOpen||Boolean(recovery),part=>part
+          .child(h_flex().gap(8).items_center().child(div().flex_1().text_size(12).font_medium().child('Review feedback'))
+            .child(this.button('plan-new-comment','General comment',cx=>this.newComment(cx),t,Boolean(recovery))))
+          .child(v_flex().max_h(120).overflow_y_scrollbar().gap(6).children(comments.filter(c=>c.draftKey!==row.key&&c.id!==row.id).map(comment=>v_flex().id('plan-comment-'+comment.id).py(5).gap(4).border_b(1).border_color(t.border)
             .child(div().text_size(11).text_color(t.muted).child(comment.anchor?comment.anchor.headingPath.join(' / '):'Whole document'))
             .child(div().text_size(12).child(comment.text)).child(h_flex().gap(6).child(this.button('plan-edit-'+comment.id,'Edit',cx=>this.edit(comment,cx),t))
-              .child(this.button('plan-resolve-'+comment.id,comment.status==='resolved'?'Reopen':'Resolve',cx=>{const edit=this.drafts.select(this.selection.owner,artifact,comment);this.drafts.change(edit.key,{status:comment.status==='resolved'?'open':'resolved'});this.flush(cx);},t))))))
+              .child(this.button('plan-resolve-'+comment.id,comment.status==='resolved'?'Reopen':'Resolve',cx=>{const edit=comment.draftKey?this.drafts.rows.get(comment.draftKey):this.drafts.select(this.selection.owner,artifact,comment);if(edit)this.drafts.change(edit.key,{status:comment.status==='resolved'?'open':'resolved'});this.flush(cx);},t))))))
           .when(!recovery,part=>part.child(this.menu('plan-sections',row.anchor?row.anchor.headingPath.join(' / '):'Whole document',[{label:'Whole document',section:null},...this.sections.map(section=>({label:section.headingPath.join(' / '),section}))],(item,cx)=>this.pickSection(item,cx),this.sectionFocus,this.sectionMenuFocus,t)))
           .child(Textarea.new(this.composer).id('plan-composer').w_full().min_h(70).max_h(140).p(8).rounded(6).border(1).border_color(t.input).bg(t.background).accessibility_label('Plan review comment'))
           .child(div().text_size(11).text_color(row.error?t.blocked:t.muted).child(row.error?'Save failed · your text is kept':row.pending||row.dirty?'Saving…':row.id?'Saved':'Draft'))
@@ -312,6 +403,7 @@ export default class Plan extends View {
           .child(this.button('plan-confirm-send',this.preview.earlierRevision?'Send earlier review':'Send review',cx=>this.confirmReview(cx),t,this.sending)))));
   }
   async close() {
+    if(this.fileView){this.fileView.close();return;}
     this.closed=true;this.watched=null;this.composer.release();for(const editor of this.sourceEditors.values())editor.release();
     for(const handle of [this.sectionFocus,this.sectionMenuFocus,this.sendFocus])handle.release();
     await this.drafts.flushAll();

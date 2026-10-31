@@ -16,6 +16,9 @@ Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any 
 - **Review delivery is copy-only.** Sending a review to an agent needs a delivery check for your exact installation. None ships, so Plan copies the review for you to paste.
 - No remote pairing, SSH setup, model configuration or service restart.
 - Plan shows one document per selected session. The older multi-document picker was removed on purpose. Saved comments and other document associations are kept.
+- **Markdown opening is read-only.** Open Markdown opens a source pane in the agent's existing tab, not a writable editor or external application. It requires a live, verified owning session and a splittable model pane.
+- **Tasks needs structural evidence.** Phase/task headings use `Phase N`/`Task N`, or Markdown checklists. Arbitrary prose is not parsed into work. Agent progress requires successful task-tool observations; unsupported tools are not guessed. A snapshot without an exact plan path/revision stays Unassigned, even if a title looks similar. Native OpenCode task-list APIs are not assumed.
+- Automated native-mod tests exercise event handlers through a boundary fixture. `herdr-app check` verifies loading, not layout, pixels, or pointer behavior; those still need live inspection.
 
 ## Metadata
 

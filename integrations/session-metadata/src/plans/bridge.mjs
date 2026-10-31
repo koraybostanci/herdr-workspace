@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { processStamp } from '../database.mjs';
 import { decodeProof, decodeArtifact, sessionKey } from '../protocol.mjs';
 
-const operations=new Set(['init','snapshot','register','unregister','select-document','list','read','save-comment','comments','resolve-conflict','preview-review','submit','dispatch','receipt',
+const operations=new Set(['init','snapshot','register','unregister','select-document','list','read','update-tasks','save-comment','comments','resolve-conflict','preview-review','submit','dispatch','receipt',
   'owner-reserve','owner-commit','owner-heartbeat','owner-release','owner-end','owner-snapshot','owner-review','owner-review-result']);
 const safeId=id=>typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id);
 const failure=reason=>({ok:false,reason});
