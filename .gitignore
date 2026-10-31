@@ -1,0 +1,13 @@
+node_modules/
+*.log
+*.sqlite
+*.sqlite-*
+*.db
+.env
+.env.*
+.DS_Store
+progress.md
+__pycache__/
+gpui-kit.d.ts
+herdr.d.ts
+*.error

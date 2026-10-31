@@ -1,0 +1,21 @@
+{
+  "name": "herdr-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Installable Herdr workspace: Spaces dropdown, agent cards, session tabs and Plan review.",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "test:clean-install": "node scripts/test-clean-install.mjs",
+    "check:privacy": "node scripts/check-private-content.mjs --tracked-and-untracked-allowlist"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1"
+  },
+  "bin": {
+    "herdr-workspace": "bin/herdr-workspace.mjs"
+  }
+}

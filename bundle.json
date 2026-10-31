@@ -1,0 +1,226 @@
+{
+  "schema": 1,
+  "owner": "herdr-workspace",
+  "version": "0.1.0",
+  "requires": {
+    "node": ">=26",
+    "nodeBuiltins": [
+      "node:sqlite"
+    ],
+    "herdr": "0.1.9",
+    "platforms": [
+      "darwin"
+    ]
+  },
+  "include": [
+    "layouts/herdr-workspace.json",
+    "mods/compact-spaces",
+    "mods/plan",
+    "mods/session-tabs",
+    "mods/space-agents",
+    "integrations/session-metadata/.npmrc",
+    "integrations/session-metadata/package.json",
+    "integrations/session-metadata/package-lock.json",
+    "integrations/session-metadata/bin",
+    "integrations/session-metadata/src",
+    "integrations/session-metadata/claude",
+    "integrations/session-metadata/opencode"
+  ],
+  "installer": [
+    "bin",
+    "src",
+    "package.json",
+    "package-lock.json",
+    ".npmrc"
+  ],
+  "layout": {
+    "name": "herdr-workspace",
+    "path": "layouts/herdr-workspace.json"
+  },
+  "mods": [
+    {
+      "name": "space-agents"
+    },
+    {
+      "name": "compact-spaces"
+    },
+    {
+      "name": "session-tabs"
+    },
+    {
+      "name": "plan"
+    }
+  ],
+  "helper": {
+    "root": "integrations/session-metadata",
+    "entries": [
+      "integrations/session-metadata/bin/herdr-plan.mjs",
+      "integrations/session-metadata/bin/herdr-session-meta.mjs"
+    ],
+    "manifests": [
+      "integrations/session-metadata/package.json",
+      "integrations/session-metadata/package-lock.json"
+    ]
+  },
+  "runtimeDependencies": [
+    "@anthropic-ai/claude-agent-sdk",
+    "jsonc-parser"
+  ],
+  "harnessModules": [
+    "@opencode/plugin/tui",
+    "solid-js"
+  ],
+  "host": {
+    "version": "0.1.9",
+    "mods": [
+      {
+        "name": "workspace-chrome",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      },
+      {
+        "name": "workspace-status",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      },
+      {
+        "name": "files",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      },
+      {
+        "name": "changes",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      },
+      {
+        "name": "pane",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      },
+      {
+        "name": "menu",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      },
+      {
+        "name": "new-menu",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
+      }
+    ],
+    "assets": [
+      "mods/changes/changes.svg",
+      "mods/files/file.svg",
+      "mods/pane/close.svg",
+      "mods/workspace-chrome/branch.svg",
+      "mods/workspace-chrome/check.svg",
+      "mods/workspace-chrome/chevron-down.svg",
+      "mods/workspace-chrome/chevron-right.svg",
+      "mods/workspace-chrome/layers.svg",
+      "mods/workspace-chrome/monitor.svg",
+      "mods/workspace-chrome/plus.svg",
+      "mods/workspace-chrome/server.svg",
+      "mods/workspace-chrome/spinner.svg",
+      "mods/workspace-chrome/terminal.svg"
+    ],
+    "assetPatterns": [
+      "mods/workspace-chrome/*.svg",
+      "mods/workspace-chrome/chevron-*.svg"
+    ]
+  },
+  "parity": [
+    [
+      "integrations/session-metadata/src/protocol.mjs",
+      "mods/plan/protocol.js"
+    ],
+    [
+      "mods/plan/protocol.js",
+      "mods/session-tabs/protocol.js"
+    ],
+    [
+      "mods/plan/client.js",
+      "mods/session-tabs/client.js"
+    ],
+    [
+      "mods/plan/model.js",
+      "mods/session-tabs/plan-model.js"
+    ]
+  ],
+  "files": {
+    "integrations/session-metadata/.npmrc": "8f4aa6035022827cf1031320fbb5ba8f1d300952e3f873b269aeeb712dea201d",
+    "integrations/session-metadata/bin/herdr-plan.mjs": "d697e517ca5964f19be7acdfa0b58d20c1ca79be07086a29bbab317b5a657951",
+    "integrations/session-metadata/bin/herdr-session-meta.mjs": "355b86f7286ab9d23373b8351cfe1508d87cf96cd4f7dba4dcb2362ab77c0690",
+    "integrations/session-metadata/claude/adapter.mjs": "599e98f88dc6f48e3661c8553c11bf65065a3bd26ba9489aa476591b240e5ad6",
+    "integrations/session-metadata/claude/plans.mjs": "c9e99574c12475c76fecd595715929b7fd89218be3f56a4e805a032d3de34625",
+    "integrations/session-metadata/opencode/adapter.mjs": "99d9cc0d95eafaaa7e020c8f8ce38b3b7261298e8b36d86cf2f9066a8eb0be17",
+    "integrations/session-metadata/opencode/plans.mjs": "b928f96cd4c390047dc8da2fd427db679c6d0ef7d1b4389e429e1075fc1abcc6",
+    "integrations/session-metadata/opencode/review-provider.mjs": "e2a8fc2bb19b047d0516c3cc4b53b21f9eed7edc19d9bda1887c1b6e2ddccd9a",
+    "integrations/session-metadata/opencode/tui.js": "a57b785c20c6bcb32313d209cccda313c8174d5e6dba1d96beef7ea6b708688e",
+    "integrations/session-metadata/package-lock.json": "c29c0442f1f2ef34b8e4204c67a0777822169b203e41db5901d3e751605479f3",
+    "integrations/session-metadata/package.json": "e1e470bdb0b4306d9db8034c0ef5fd4b7b53ba4f24171f53251094c079f7c467",
+    "integrations/session-metadata/src/binding-lifecycle.mjs": "a383ed5f7451ae66115fd5a5a5c58d1a4ca5c2ab613850dcef615f923d259648",
+    "integrations/session-metadata/src/collector.mjs": "3204a4e596e95d143bfde0012946b400003ca3a6140daa78e51057133fcbdfbe",
+    "integrations/session-metadata/src/contracts.mjs": "baf7412f242922571bf719fea932ee421d260aeb6d186ca550509e74baf4a6f0",
+    "integrations/session-metadata/src/database.mjs": "3b09e2783b1674ea7839e88ae285323e1a81e044adab883e6d357c34989bdfc6",
+    "integrations/session-metadata/src/engine.mjs": "91b9c0088ec46f156e7fb7346ea586b4205022aea0eba6adde824b43e05d38df",
+    "integrations/session-metadata/src/naming.mjs": "8c3c5c20a524069a663d1454e6571543f53b0c6467731d6a24b0d4500eb9ed7d",
+    "integrations/session-metadata/src/pending.mjs": "9944593584b93da79733f5baeb167dc7e406a3648a46b7d36da7b2b0d7b85b12",
+    "integrations/session-metadata/src/plans/artifacts.mjs": "db2c5e555a1b3dddfc01015b33e02d5ebbdd0037896cc7517d1b14ab59a95977",
+    "integrations/session-metadata/src/plans/bridge.mjs": "f0fccf390a73a7f56ede6db1ce0a64011d5c7ea3e60902ec396a7ed3a7bc1d28",
+    "integrations/session-metadata/src/plans/capabilities.mjs": "466856251582cd34d4affc62d26dcbe1a302065d951b44ce4ac0cbf6b3c23d08",
+    "integrations/session-metadata/src/plans/delivery.mjs": "25bebcdada573ab1dccc93c3dc7d2a5834dfff5a4139955e0e76c2021dc3a7d6",
+    "integrations/session-metadata/src/plans/evidence.mjs": "a210274d57b7ec3218e9dd70ea14b94f66b3c8bb3a482d4ca44d445fcaea481d",
+    "integrations/session-metadata/src/plans/provider-mailbox.mjs": "2abd4d8502f54ab61968575a798091b53593f4038cf2c2c2c948677ce7c21fa7",
+    "integrations/session-metadata/src/plans/reviews.mjs": "27a0046ea32b7f376ccb186c8e99cf59b2fbd415c6c03665855524ad7826a386",
+    "integrations/session-metadata/src/plans/runtime.mjs": "c633466e84c040297ef6ac1a2b8fd987238cf6b45a2c764b94ce8880a8f7ba38",
+    "integrations/session-metadata/src/protocol.mjs": "7ce7958a5c508023096ff50273d98badffaf78d7b5a5e3026eb1cbcc5bfb8f58",
+    "integrations/session-metadata/src/scope.mjs": "6f21e53d01e3612eb3d30d9e39ef934252badba4ece0f2721f9535dabe00891e",
+    "integrations/session-metadata/src/store.mjs": "874f418a0575fa48563d04ee2a1e959f74affa1f839c27a0356dd4c0ec987b0d",
+    "integrations/session-metadata/src/transport.mjs": "ebfb602055d210775c88c2b7f49bf82daacc1f044245b9d2a851da692f856636",
+    "integrations/session-metadata/src/work-context.mjs": "d7f61e99729228d27b217bd85b8b87a02a29d846ca0a3282dd6b27155e1ce753",
+    "layouts/herdr-workspace.json": "744da33cc73374e9cb5d105d340ff5bf2fd7ef3622275af100819a670f23a62c",
+    "mods/compact-spaces/README.md": "1f75247f50a3b6d3759ac043953189ff9998aab4dabe7ef458d3153313739af2",
+    "mods/compact-spaces/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
+    "mods/compact-spaces/main.js": "0e524e8747f0c547238b587fba4ace710b0bbc4af8523b4777d14fc4a1b22f41",
+    "mods/compact-spaces/mod.json": "8357ce89d375376872b6db414b9555b26936b2e9d61e44275dc2e2bfe2a5783e",
+    "mods/compact-spaces/model.js": "f8fe6221c26a3f79f502d00422ac29c430f3555e427953ca25baa7de8c3e8078",
+    "mods/plan/README.md": "b5f148412558954cbac2a36c4d0e8934da291dae7c3c91dc4d94e19a367b9e60",
+    "mods/plan/client.js": "f444a4cca608e7c65a3be11f7ce24c096416c16795fedf167d0ab5b45360cba8",
+    "mods/plan/drafts.js": "acbe39e074f49cbf233dc985a539796fb82d9ff3ba2334850069efe885c367fe",
+    "mods/plan/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
+    "mods/plan/main.js": "2ec36edd2341f3efdf31d5ca4d838a6be66e46aa89a8bdc6ccd96d9e310c352e",
+    "mods/plan/mod.json": "ee2065a0ecb71843ac367bd052e3b04238fb8b7cbed1dcabeb2f21b532e63a06",
+    "mods/plan/model.js": "25b68f6b28908ad88029edb8f16dedc43da2858f444032aa0fcc4961cfc8632b",
+    "mods/plan/plan.svg": "6e802b61027181d53c9d5ba123f8e66d190215bc996f3404b85aa424c4241d98",
+    "mods/plan/protocol.js": "7ce7958a5c508023096ff50273d98badffaf78d7b5a5e3026eb1cbcc5bfb8f58",
+    "mods/session-tabs/client.js": "f444a4cca608e7c65a3be11f7ce24c096416c16795fedf167d0ab5b45360cba8",
+    "mods/session-tabs/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
+    "mods/session-tabs/main.js": "dcad32ba6b53829e4ba492cbd10327d85fe92c1dd19f8dd411ed46db7f9cb639",
+    "mods/session-tabs/mod.json": "bd2a09edf56933dd318e75ce134b2c48aed56010b825f3c936f92a995e686c4d",
+    "mods/session-tabs/plan-controller.js": "0d2f7720a93550fcf420f2ebbd701833d29ec2cf539c056219e4cf30986375d9",
+    "mods/session-tabs/plan-model.js": "25b68f6b28908ad88029edb8f16dedc43da2858f444032aa0fcc4961cfc8632b",
+    "mods/session-tabs/protocol.js": "7ce7958a5c508023096ff50273d98badffaf78d7b5a5e3026eb1cbcc5bfb8f58",
+    "mods/space-agents/README.md": "dd19136cb59708320600cb8721f443916165356ae71d798e393acc8f5ef69e6e",
+    "mods/space-agents/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
+    "mods/space-agents/main.js": "921e91e3a9ae29e71e0533046a5edddb0b9af960bab9890ad672f730e899023f",
+    "mods/space-agents/mod.json": "b8c5b81a3b7e960a6d699eef62e08e914bfd8f9bab29a8fbb0adc129c8060432",
+    "mods/space-agents/model.js": "3a108e09f04b0c7da2e8933c0de1c76b7155d16c554149df51378b437372765d",
+    "mods/space-agents/pull-request.svg": "d14295c0fb4e3664ace1d9d33556ff62fb317fb07c53eacde2d8303e05b7b067",
+    "mods/space-agents/session-metadata.js": "1410b4cdc243199482d09adc5b2dfc4c0d4bfc266f19fee49ffc684c6df21dfe"
+  }
+}
