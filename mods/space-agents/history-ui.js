@@ -24,7 +24,28 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
         .accessibility_label(`${o.label}${mode === o.value ? ", selected" : ""}`).on_click((_e, cx) => c.chooseView(o.value, cx))
         .child(div().flex_1().text_size(12).child(o.label)).when(mode === o.value, el => el.child(svg("mods/workspace-chrome/check.svg").size(14).text_color(t.accent))))));
   const row = r => {
-    const program = historyProgram(r.session, knownPrograms), pending = c.pending.get(r.key), opening = pending?.state === "opening";
+    const program = historyProgram(r.session, knownPrograms), pending = c.pending.get(r.key), opening = pending?.state === "opening", deleting = pending?.state === "deleting";
+    const deleteDisabled = Boolean(r.bindings.length || opening || deleting);
+    const stop = (_e, cx) => cx.stop_propagation();
+    const deleteControl = Popover.new(`session-history-delete-popover-${r.key}`).open(c.confirmDeleteKey === r.key).anchor("top_right").track_focus(c.deleteHandle)
+      .on_open_change((open, cx) => c.requestDelete(r, open, cx))
+      .trigger(Button.new(`session-history-delete-${r.key}`).size(24).flex_none().rounded(4).cursor_pointer().disabled(deleteDisabled)
+        .text_color(deleteDisabled ? t.dim : t.muted).hover(el => el.bg(t.raised).text_color(t.blocked))
+        .accessibility_label(`Permanently delete ${r.title}`).tooltip(r.bindings.length ? "Close this session in Herdr before deleting it" : "Permanently delete session")
+        .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); c.requestDelete(r, c.confirmDeleteKey !== r.key, cx); }).on_key_down(stop).on_key_up(stop)
+        .child(svg("mods/space-agents/trash.svg").size(14)))
+      .content(v_flex().id(`session-history-delete-confirmation-${r.key}`).w(260).p(12).gap(10).rounded(7).bg(t.popover).text_color(t.foreground)
+        .role("alert_dialog").accessibility_label(`Permanently delete ${r.title}?`)
+        .on_click(stop).on_key_down(stop).on_key_up(stop)
+        .child(div().text_size(12.5).font_medium().truncate().tooltip(r.title).child(`Permanently delete “${r.title}”?`))
+        .child(div().text_size(11.5).text_color(t.muted).child(`This deletes the saved conversation${r.session.harness === "opencode-v2" ? " and its child sessions" : " and its subagent transcripts"} from ${program.name}. This cannot be undone.`))
+        .child(h_flex().gap(8).justify_end()
+          .child(Button.new(`session-history-delete-cancel-${r.key}`).h(28).px(10).rounded(4).cursor_pointer().track_focus(c.deleteHandle)
+            .bg(t.raised).hover(el => el.bg(t.hover)).accessibility_label("Cancel deletion")
+            .on_click((_e, cx) => { cx.stop_propagation(); c.requestDelete(r, false, cx); }).child("Cancel"))
+          .child(Button.new(`session-history-delete-confirm-${r.key}`).h(28).px(10).rounded(4).cursor_pointer().disabled(deleteDisabled)
+            .text_color(t.blocked).bg(t.raised).hover(el => el.bg(t.hover)).accessibility_label(`Confirm permanent deletion of ${r.title}`)
+            .on_click((_e, cx) => { cx.stop_propagation(); c.deleteSession(r, cx); }).child("Delete"))));
     const icon = (program.tint ? svg(program.icon).text_color(t.foreground) : image(program.icon)).id(`session-history-icon-${r.key}`).w(16).h(16).flex_none();
     const presence = r.primaryBinding?.browsing ? "Open for viewing; no new work requested here" : "Saved history; external activity unknown";
     const description = `${r.title}, ${program.name}, ${r.session.host} · ${r.directory ?? "Directory unavailable"}, ${r.updatedAt ? age(r.updatedAt) + " ago" : "Date unavailable"}, ${r.saved === "available" ? "saved" : "saved availability unverified"}. ${presence}.${pending?.message ? " " + pending.message : ""}`;
@@ -34,8 +55,9 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
       .on_click((_e, cx) => { c.selectedKey = r.key; c.listHandle.focus(); c.resume(r, cx); })
       .when(compact, el => el.justify_center()).child(icon)
       .when(!compact, el => el.child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(r.title))
-        .child(opening ? svg("mods/workspace-chrome/spinner.svg").id(`session-history-opening-${r.key}`).size(12).flex_none().text_color(t.muted).spin(900)
-          : div().flex_none().text_size(10.5).text_color(pending?.state === "error" ? t.blocked : t.muted).child(age(r.updatedAt))));
+        .child(opening || deleting ? svg("mods/workspace-chrome/spinner.svg").id(`session-history-${deleting ? "deleting" : "opening"}-${r.key}`).size(12).flex_none().text_color(t.muted).spin(900)
+          : div().flex_none().text_size(10.5).text_color(pending?.state === "error" ? t.blocked : t.muted).child(age(r.updatedAt)))
+        .child(deleteControl));
   };
   if (!rows.some(r => r.key === c.selectedKey)) c.selectedKey = rows[0]?.key ?? null;
   const partial = c.page && !c.page.complete;

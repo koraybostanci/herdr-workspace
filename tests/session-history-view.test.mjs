@@ -279,3 +279,102 @@ test("history calls reject unowned runtime descriptors before executing a helper
   await assert.rejects(view.history.call("history-view", {}), /metadata-unavailable/);
   state.execute = null;
 });
+
+test("the trash control opens a safe-default confirmation without opening the session", () => {
+  const view = fixture(), tree = render(view); state.tasks = [];
+  const trigger = find(tree, `session-history-delete-${key}`);
+  assert.ok(trigger, "each expanded history row has a delete control");
+  let stopped = false;
+  trigger.attributes.on_click[0]({}, { ...context(), stop_propagation() { stopped = true; } });
+  assert.equal(stopped, true); assert.deepEqual(state.tasks, []); assert.deepEqual(state.commands, []);
+  assert.equal(find(render(view), `session-history-delete-popover-${key}`).attributes.open[0], true, "pressing the trash control opens confirmation");
+  find(tree, `session-history-delete-popover-${key}`).attributes.on_open_change[0](true, context());
+  const confirmation = find(render(view), `session-history-delete-confirmation-${key}`);
+  assert.ok(text(confirmation).some(s => s.includes("Saved session")));
+  assert.ok(text(confirmation).some(s => s.includes("cannot be undone")));
+  assert.ok(text(confirmation).some(s => s.includes("child sessions")));
+  const cancel = find(confirmation, `session-history-delete-cancel-${key}`);
+  assert.ok(cancel.attributes.track_focus[0].is_focused(), "Cancel takes initial keyboard focus");
+  cancel.attributes.on_click[0]({}, context());
+  assert.equal(find(render(view), `session-history-delete-popover-${key}`).attributes.open[0], false);
+  assert.deepEqual(state.tasks, []);
+});
+
+test("confirmed deletion disables reopening and removes the row and count only after success", async () => {
+  const view = fixture(), tree = render(view); state.tasks = [];
+  const popover = find(tree, `session-history-delete-popover-${key}`);
+  assert.ok(popover, "history deletion has a confirmation");
+  popover.attributes.on_open_change[0](true, context());
+  find(render(view), `session-history-delete-confirm-${key}`).attributes.on_click[0]({}, context());
+  assert.ok(find(render(view), `session-history-deleting-${key}`));
+  find(render(view), `session-history-${key}`).attributes.on_click[0]({}, context());
+  assert.equal(state.tasks.length, 1, "a deleting session cannot also be resumed");
+  state.execute = async (_command, args) => {
+    assert.equal(args[1], "delete-session");
+    const request = JSON.parse(args[args.indexOf("--request") + 1]);
+    assert.equal(request.confirmed, true); assert.equal(request.session.id, "ses_saved");
+    return { code: 0, stdout: JSON.stringify({ schema: 1, owner: "herdr-session-metadata", deleted: true, sessionKey: key }) };
+  };
+  try {
+    await state.tasks.shift()();
+    assert.equal(find(render(view), `session-history-${key}`), undefined);
+    assert.equal(view.history.page.total, 0);
+    assert.deepEqual(state.commands, []);
+  } finally { state.execute = null; }
+});
+
+test("failed or mismatched deletion acknowledgement retains a retryable history row", async () => {
+  for (const response of [{ error: "delete-failed" }, { deleted: true, sessionKey: "wrong-session" }]) {
+    const view = fixture(), tree = render(view); state.tasks = [];
+    const popover = find(tree, `session-history-delete-popover-${key}`);
+    assert.ok(popover, "history deletion has a confirmation");
+    popover.attributes.on_open_change[0](true, context());
+    find(render(view), `session-history-delete-confirm-${key}`).attributes.on_click[0]({}, context());
+    state.execute = async () => ({ code: 0, stdout: JSON.stringify(response) });
+    try {
+      await state.tasks.shift()();
+      const row = find(render(view), `session-history-${key}`);
+      assert.ok(row); assert.ok(row.attributes.tooltip[0].includes("Could not delete"));
+      assert.equal(view.history.page.total, 1);
+    } finally { state.execute = null; }
+  }
+});
+
+test("open browsing sessions keep their delete control disabled with a close-first explanation", () => {
+  const f = metadataFixture(), binding = { ...f.binding, session: historyEntry().session, space: historySpace,
+    address: "t1", tab: "tab1", pane: null, presence: "open", connection: "confirmed", browsing: true };
+  const view = fixture([historyEntry("ses_saved", { bindings: [binding] })]);
+  const trigger = find(render(view), `session-history-delete-${key}`);
+  assert.ok(trigger, "open history rows still explain the unavailable action");
+  assert.equal(trigger.attributes.disabled[0], true);
+  assert.ok(trigger.attributes.tooltip[0].includes("Close"));
+});
+
+test("deletion invalidates in-flight history pages and purges cached Spaces without touching another identity", async () => {
+  const view = fixture(), request = view.history.currentRequest;
+  const stale = createHistoryView(historyRegistry([historyEntry()]), request);
+  const other = historyEntry("ses_saved", { session: { ...historyEntry().session, authority: "other" } });
+  view.history.cache.set("cached", { registry: historyRegistry([historyEntry(), other]), page: null });
+  const popover = find(render(view), `session-history-delete-popover-${key}`);
+  assert.ok(popover, "history deletion has a confirmation");
+  popover.attributes.on_open_change[0](true, context());
+  find(render(view), `session-history-delete-confirm-${key}`).attributes.on_click[0]({}, context());
+  const task = state.tasks.pop(); state.tasks = [];
+  state.execute = async () => ({ code: 0, stdout: JSON.stringify({ schema: 1, owner: "herdr-session-metadata", deleted: true, sessionKey: key }) });
+  try {
+    await task();
+    assert.equal(view.history.acceptPage(stale, request), false);
+    assert.deepEqual(view.history.cache.get("cached").registry.sessions.map(e => e.session.authority), ["other"]);
+    assert.equal(find(render(view), `session-history-${key}`), undefined);
+  } finally { state.execute = null; }
+});
+
+test("switching Spaces dismisses delete confirmation before it can target the old row", () => {
+  const view = fixture(); state.tasks = [];
+  find(render(view), `session-history-delete-${key}`).attributes.on_click[0]({}, context());
+  const confirm = find(render(view), `session-history-delete-confirm-${key}`);
+  state.data.selectedSpace = "two"; render(view); state.tasks = [];
+  confirm.attributes.on_click[0]({}, context());
+  assert.deepEqual(state.tasks, []);
+  assert.equal(view.history.confirmDeleteKey, null);
+});

@@ -7,8 +7,8 @@ const empty = () => ({ schema: 1, owner: "herdr-session-metadata", revision: 0, 
 export class HistoryController {
   init(cx) {
     this.registry = empty(); this.cache = new Map(); this.contexts = new Map(); this.pending = new Map(); this.requestSeq = 0; this.loading = false;
-    this.query = ""; this.selectedKey = null; this.menuOpen = false; this.menuIndex = 0;
-    this.listHandle = cx.focus_handle(); this.menuHandle = cx.focus_handle();
+    this.query = ""; this.selectedKey = null; this.menuOpen = false; this.menuIndex = 0; this.confirmDeleteKey = null;
+    this.listHandle = cx.focus_handle(); this.menuHandle = cx.focus_handle(); this.deleteHandle = cx.focus_handle();
     this.search = InputState.new({ placeholder: "Search sessions…" });
     this.search.on("change", (_event, cx) => {
       this.query = this.search.value().slice(0, 512); this.selectedKey = null;
@@ -23,7 +23,7 @@ export class HistoryController {
       if (this.contextKey) this.cache.set(this.contextKey, { registry: this.registry, page: this.page });
       const cached = this.cache.get(contextKey);
       this.registry = cached?.registry ?? empty(); this.page = cached?.page ?? null;
-      this.currentRequest = null; this.error = null; this.selectedKey = null; this.contextKey = contextKey;
+      this.currentRequest = null; this.error = null; this.selectedKey = null; this.confirmDeleteKey = null; this.contextKey = contextKey;
     }
     this.space = space;
     if (space) this.contexts.set(JSON.stringify([space.id, space.machine ?? null]), space);
@@ -90,7 +90,7 @@ export class HistoryController {
   partition(observations) {
     this.registry = reconcileSessionRegistry(this.registry, { presence: observations, now: Date.now() });
     const partition = partitionSpaceSessions({ registry: this.registry, space: this.space });
-    for (const row of [...partition.agents, ...partition.history]) if (row.primaryBinding && row.connection === "confirmed") this.pending.delete(row.key);
+    for (const row of [...partition.agents, ...partition.history]) if (row.primaryBinding && row.connection === "confirmed" && this.pending.get(row.key)?.state !== "deleting") this.pending.delete(row.key);
     return partition;
   }
   groups(rows) {
@@ -101,8 +101,44 @@ export class HistoryController {
   }
   chooseView(mode, cx) { setShared("space-agents.history.view", mode); this.menuOpen = false; this.refresh(cx); cx.notify(); }
   toggle(section, cx) { const folded = shared("space-agents.sections") ?? {}; setShared("space-agents.sections", { ...folded, [section]: !folded[section] }); cx.notify(); }
+  requestDelete(row, open, cx) {
+    this.confirmDeleteKey = open && !row.bindings.length && !["opening", "deleting"].includes(this.pending.get(row.key)?.state) ? row.key : null;
+    if (this.confirmDeleteKey) this.deleteHandle.focus();
+    cx.notify();
+  }
+  deleteSession(row, cx) {
+    if (this.confirmDeleteKey !== row.key || row.bindings.length || !this.space || ["opening", "deleting"].includes(this.pending.get(row.key)?.state)) return;
+    const space = this.space;
+    this.confirmDeleteKey = null; this.pending.set(row.key, { state: "deleting" }); cx.notify();
+    cx.spawn(async cx => {
+      try {
+        const result = await this.call("delete-session", { session: row.session, space, confirmed: true });
+        if (result.error) throw Error(result.error);
+        if (result.schema !== 1 || result.owner !== "herdr-session-metadata" || result.deleted !== true || result.sessionKey !== row.key) throw Error("invalid-deletion-result");
+        const forget = state => {
+          const included = state.registry.sessions.some(e => sessionIdentityKey(e.session) === row.key);
+          const registry = { ...state.registry, sessions: state.registry.sessions.filter(e => sessionIdentityKey(e.session) !== row.key) };
+          const page = state.page && { ...state.page, total: Math.max(0, state.page.total - Number(included)),
+            nextOffset: Math.max(0, state.page.nextOffset - Number(included)),
+            history: state.page.history.filter(e => sessionIdentityKey(e.session) !== row.key) };
+          return { registry, page };
+        };
+        Object.assign(this, forget(this));
+        for (const [key, cached] of this.cache) this.cache.set(key, forget(cached));
+        this.currentRequest = null; this.loading = false; this.pending.delete(row.key);
+        this.refresh(cx);
+      } catch (error) {
+        const messages = { "session-open": "Close this session in Herdr before deleting it.",
+          "deletion-unverified": "Deletion could not be verified. Refresh or retry to check the saved session.",
+          "authority-unavailable": "Could not delete: the original server is unavailable. Reconnect and retry.",
+          "execution-host-unavailable": "Could not delete: the original machine is unavailable. Reconnect and retry.",
+          "remote-delete-unavailable": "Could not delete on the original machine. Check its connection and metadata helper, then retry." };
+        this.pending.set(row.key, { state: "error", message: messages[error.message] ?? "Could not delete this session. Check its machine and harness, then retry." });
+      } finally { cx.notify(); }
+    });
+  }
   resume(row, cx) {
-    if (this.pending.get(row.key)?.state === "opening" || !this.space) return;
+    if (["opening", "deleting"].includes(this.pending.get(row.key)?.state) || !this.space) return;
     const space = this.space;
     this.pending.set(row.key, { state: "opening" }); cx.notify();
     cx.spawn(async cx => {
@@ -127,5 +163,5 @@ export class HistoryController {
       } finally { cx.notify(); }
     });
   }
-  close() { this.search.release(); this.listHandle.release(); this.menuHandle.release(); }
+  close() { this.search.release(); this.listHandle.release(); this.menuHandle.release(); this.deleteHandle.release(); }
 }
