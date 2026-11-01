@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { validateBundle } from "./bundle.mjs";
 import { ABSENT, OWNER, symlinkedBelow, applyEntryToText, configKey, deepEqual, getAt, hashOf, journalPathFor, parseDoc, readJournal } from "./install-common.mjs";
 
@@ -27,6 +27,33 @@ async function inspect(path) {
   try { info = await lstat(path); } catch (e) { if (e.code === "ENOENT") return { hash: ABSENT }; throw e; }
   if (!info.isFile()) return { foreign: true };
   return { hash: hashOf(await readFile(path)) };
+}
+
+function mentionsHelper(value, root) {
+  if (typeof value === "string") return value === root || value.includes(root + "/");
+  if (Array.isArray(value)) return value.some(item => mentionsHelper(item, root));
+  return value !== null && typeof value === "object" && Object.values(value).some(item => mentionsHelper(item, root));
+}
+
+const knownKeys = (value, keys) => value !== null && typeof value === "object" && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key));
+
+// Only the published metadata integration shapes can be adopted without guessing at custom settings.
+function adoptableEntry(entry, name, { appHome, stateRoot }) {
+  const prefix = join(appHome, HELPER, "releases") + "/";
+  const release = path => typeof path === "string" && path.startsWith(prefix) && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(path.slice(prefix.length));
+  if (name === "opencode") {
+    return knownKeys(entry, ["package", "options"]) && release(entry.package)
+      && knownKeys(entry.options, ["appHome", "stateRoot", "metadataVersion"])
+      && entry.options.appHome === appHome && entry.options.stateRoot === stateRoot
+      && (entry.options.metadataVersion === undefined || entry.options.metadataVersion === 2);
+  }
+  if (!knownKeys(entry, ["hooks"]) || !Array.isArray(entry.hooks) || entry.hooks.length !== 1) return false;
+  const hook = entry.hooks[0], suffix = "/bin/herdr-session-meta.mjs";
+  return knownKeys(hook, ["type", "command", "args", "timeout", "onFailure"]) && hook.type === "command"
+    && typeof hook.command === "string" && isAbsolute(hook.command) && basename(hook.command) === "node"
+    && Array.isArray(hook.args) && hook.args.length === 3 && typeof hook.args[0] === "string" && hook.args[0].endsWith(suffix)
+    && release(hook.args[0].slice(0, -suffix.length)) && hook.args[1] === "hook" && hook.args[2] === "claude"
+    && hook.timeout === 10 && hook.onFailure === "continue";
 }
 
 function desiredEntries(name, { releaseDir, node, appHome, stateRoot }) {
@@ -123,17 +150,35 @@ export async function planInstall({ bundle, sourceRoot, appHome, stateRoot, node
     let text = current.hash === ABSENT ? null : (await readFile(path)).toString("utf8");
     configFiles[path] = { existed: text !== null, beforeHash: current.hash };
     try {
-      parseDoc(text);
+      const doc = parseDoc(text), helperRoot = join(appHome, HELPER);
+      if (name === "claude") for (const [event, groups] of Object.entries(doc.hooks ?? {})) {
+        if (!CLAUDE_EVENTS.includes(event) && Array.isArray(groups) && groups.some(group => mentionsHelper(group, helperRoot))) {
+          blockers.push({ rule: "ambiguous-harness-entry", path, harness: name });
+        }
+      }
       for (const entry of desiredEntries(name, { releaseDir, node, appHome, stateRoot })) {
         const list = getAt(parseDoc(text), entry.at);
         if (list !== undefined && !Array.isArray(list)) throw new Error("invalid-config");
         const step = ownedConfig.get(configKey(path, entry.at));
         const old = [step?.previous, step?.value].find(c => c !== undefined && list?.some(e => deepEqual(e, c)));
+        const candidates = list?.filter(value => mentionsHelper(value, helperRoot)) ?? [];
         const edit = { harness: name, path, at: entry.at, value: entry.value };
-        if (list?.some(e => deepEqual(e, entry.value))) edit.status = "present";
+        if (candidates.length > 1 || candidates.length === 1 && old !== undefined && !deepEqual(candidates[0], old)) {
+          blockers.push({ rule: "ambiguous-harness-entry", path, harness: name }); continue;
+        }
+        if (old === undefined && candidates.length === 1) {
+          if (!adoptableEntry(candidates[0], name, { appHome, stateRoot })) {
+            blockers.push({ rule: "ambiguous-harness-entry", path, harness: name }); continue;
+          }
+          if (!adopt) { blockers.push({ rule: "harness-adoption-required", path, harness: name }); continue; }
+          edit.status = "adopt";
+          edit.previous = candidates[0];
+        } else if (list?.some(e => deepEqual(e, entry.value))) edit.status = "present";
         else {
           edit.status = old !== undefined && list?.some(e => deepEqual(e, old)) ? "replace" : "add";
           if (edit.status === "replace") edit.previous = old;
+        }
+        if (edit.status !== "present") {
           edit.createdArray = list === undefined;
           edit.createdParent = entry.at.length > 1 && getAt(parseDoc(text), entry.at.slice(0, -1)) === undefined;
           text = applyEntryToText(text, edit);

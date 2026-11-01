@@ -1,10 +1,10 @@
-<p align="center">
+<p align="left">
   <img src="assets/logo.svg" width="112" height="112" alt="herdr-workspace logo">
 </p>
 
-<h1 align="center">herdr-workspace</h1>
+<h1 align="left">herdr-workspace</h1>
 
-<p align="center">
+<p align="left">
   A focused Herdr workspace for people who run several coding agents at once:<br>
   a Spaces dropdown, live agent cards, saved Session History and session tabs.
 </p>
@@ -30,8 +30,11 @@ Everything ships as one bundle with one installer. The installer checks your Her
 - Optional: `git` for branch context, `gh` with your own sign-in for verified pull request links, and OpenCode or Claude Code for the harness adapters.
 
 The UI installs without GitHub credentials. A missing optional tool turns off only its own feature.
+A different Herdr version, such as 0.1.11, produces an unverified-version warning, not an installation blocker.
 
-## Install
+## Fresh install
+
+Install Herdr and Node first. The clone command needs Git and access to this repository. Run these commands one at a time; **stop if `plan` reports any `blocked:` lines**.
 
 ```sh
 git clone git@github.com:koraybostanci/herdr-workspace.git
@@ -61,10 +64,39 @@ herdr-app do layout.switch '{"name":"herdr-workspace"}'
 To identify live sessions and track when a conversation opened from History starts new work, install or update the adapters explicitly:
 
 ```sh
+node bin/herdr-workspace.mjs plan --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs install --configure-harnesses opencode,claude
+node bin/herdr-workspace.mjs doctor
 ```
 
 List only the harnesses you use. Without this opt-in, saved history can still be discovered, but exact live-session reconciliation and browsing-to-Agents tracking need the matching adapters. See [Session History setup](docs/installation.md#session-history) for source profiles, additional OpenCode services and remote requirements.
+
+## Upgrade an installer-managed installation
+
+From your repository checkout:
+
+```sh
+git switch main
+git pull --ff-only
+npm ci
+node bin/herdr-workspace.mjs plan --configure-harnesses opencode,claude
+node bin/herdr-workspace.mjs install --configure-harnesses opencode,claude
+node bin/herdr-workspace.mjs doctor
+```
+
+Use only the harnesses you configured, or omit `--configure-harnesses` if you did not configure any. Keep the original app, state and harness settings paths if you customized them. Use the same options for `plan` and `install`, and stop on blockers. Normal managed upgrades do not need `--adopt`.
+
+## Migrate a manual or development installation
+
+Existing files or integrations without an installer ownership record can report `foreign-file` or `harness-adoption-required`. Review those differences before opting in:
+
+```sh
+node bin/herdr-workspace.mjs plan --adopt --configure-harnesses opencode,claude
+node bin/herdr-workspace.mjs install --adopt --configure-harnesses opencode,claude
+node bin/herdr-workspace.mjs doctor
+```
+
+`--adopt` backs up conflicting files and records recognized existing metadata integrations before replacing them, rather than adding duplicate plugins or hooks. It still reads only the harnesses you select. Duplicate, customized or unsupported integration entries remain blocked; do not delete them or reset your settings to bypass that check. See [migration details](docs/installation.md#unmanaged-installations).
 
 ## Commands
 
@@ -85,7 +117,7 @@ See [docs/installation.md](docs/installation.md) for the full list of what chang
 - **Preflight first.** A missing Herdr built-in mod or asset, or an old Node stops the install before any write.
 - **No silent overwrites.** A file that already exists with different content blocks the install. `--adopt` replaces it only after saving a backup.
 - **Journaled.** Every change is recorded before it is made. An interrupted install resumes when you run the same command again.
-- **Minimal settings edits.** With harness opt-in, the installer adds one OpenCode plugin entry and six Claude hooks. Comments, providers, models and credential helpers stay untouched.
+- **Minimal settings edits.** With harness opt-in, the installer adds or updates one OpenCode plugin entry and six Claude hooks. Comments, providers, models and credential helpers stay untouched.
 - **Reversible.** Uninstall keeps files you edited, settings you added later and all private review data.
 - **Private by default.** Install folders are mode `0700`. State, descriptors and journals are `0600`.
 

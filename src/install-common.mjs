@@ -41,10 +41,14 @@ const fingerprint = entry => entry?.package ?? entry?.hooks?.find(h => h?.args)?
 // Idempotent: adds, replaces or leaves one array entry. Creates the array (and its parent object) when missing.
 export function applyEntryToText(text, { at, value, previous }) {
   const list = getAt(parseDoc(text), at);
-  if (list === undefined) return change(text, at, [value]);
+  if (list === undefined) {
+    if (previous !== undefined) throw new Error("config-changed-concurrently");
+    return change(text, at, [value]);
+  }
   if (!Array.isArray(list)) throw new Error("invalid-config");
   if (list.some(entry => deepEqual(entry, value))) return text;
   const index = previous === undefined ? -1 : list.findIndex(entry => deepEqual(entry, previous));
+  if (previous !== undefined && index < 0) throw new Error("config-changed-concurrently");
   return change(text, index >= 0 ? [...at, index] : [...at, -1], value);
 }
 
