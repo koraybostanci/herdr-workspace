@@ -14,7 +14,7 @@ const USAGE = `usage: herdr-workspace [plan|install|doctor|uninstall] [options]
   --configure-harnesses <list>  opt in to harness setup: opencode,claude
   --opencode-path <file>        OpenCode CLI config (default ~/.config/opencode/cli.json)
   --claude-path <file>          Claude settings (default ~/.claude/settings.json)
-  --adopt                       replace differing files after backing them up
+  --adopt                       adopt differing files and recognized harness entries, with backups
 plan is the default and writes nothing. install must be named explicitly.`;
 
 export const defaultRun = (command, args = [], options = {}) => new Promise(resolvePromise => {
@@ -124,7 +124,12 @@ export async function runCli(argv, { run = defaultRun, node = process.execPath, 
     const plan = await planInstall({ bundle, sourceRoot, ...paths, node, harnesses, configureHarnesses: o.configure, adopt: o.adopt });
     for (const w of pre.warnings) say(`warn ${w.message}`);
     for (const w of plan.warnings) say(`warn ${w.rule}: ${rel(w.path, home)}${w.harness ? ` (re-run with --configure-harnesses ${w.harness} to update it)` : ""}`);
-    for (const b of plan.blockers) stderr(`blocked: ${b.rule}${b.path ? " " + rel(b.path, home) : ""}${b.harness ? ` (include --configure-harnesses ${b.harness})` : ""}\n`);
+    for (const b of plan.blockers) {
+      const hint = b.rule === "harness-adoption-required" ? ` (review it, then re-run with --adopt --configure-harnesses ${b.harness})`
+        : b.rule === "ambiguous-harness-entry" ? ` (review the existing ${b.harness} integration; --adopt cannot overwrite it)`
+        : b.harness ? ` (include --configure-harnesses ${b.harness})` : "";
+      stderr(`blocked: ${b.rule}${b.path ? " " + rel(b.path, home) : ""}${hint}\n`);
+    }
 
     if (o.command === "plan") {
       const counts = {};
