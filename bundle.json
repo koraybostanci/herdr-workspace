@@ -13,6 +13,7 @@
   "include": [
     "layouts/herdr-workspace.json",
     "mods/compact-spaces",
+    "mods/workspace-header",
     "mods/session-tabs",
     "mods/space-agents",
     "integrations/session-metadata/.npmrc",
@@ -35,6 +36,9 @@
     "path": "layouts/herdr-workspace.json"
   },
   "mods": [
+    {
+      "name": "workspace-header"
+    },
     {
       "name": "space-agents"
     },
@@ -114,6 +118,13 @@
           "mod.json",
           "main.js"
         ]
+      },
+      {
+        "name": "picker",
+        "files": [
+          "mod.json",
+          "main.js"
+        ]
       }
     ],
     "assets": [
@@ -129,7 +140,9 @@
       "mods/workspace-chrome/layers.svg",
       "mods/workspace-chrome/monitor.svg",
       "mods/workspace-chrome/plus.svg",
+      "mods/workspace-chrome/search.svg",
       "mods/workspace-chrome/server.svg",
+      "mods/workspace-chrome/sidebar.svg",
       "mods/workspace-chrome/spinner.svg",
       "mods/workspace-chrome/terminal.svg"
     ],
@@ -175,10 +188,10 @@
     "integrations/session-metadata/src/store.mjs": "aee6f01a3d52bd76246f064a98a162f4c0faa09991d1a76a70c022e3fc54bc9c",
     "integrations/session-metadata/src/transport.mjs": "93dd7d76188ff70d165508bf5bdee6aace75f2c3f31d3c71bcf95afb9e4b1251",
     "integrations/session-metadata/src/work-context.mjs": "6ba49b6e0e65234930a3d409f751d7bc7f91a3aa5dcb04434f244bf0bf685c55",
-    "layouts/herdr-workspace.json": "f6132ab580e9e160189644e0dab5505ca8be08c59f1c80b1a100a3d0a14972f5",
-    "mods/compact-spaces/README.md": "023424a593b420c3e0b0ab340df7cc771ae630108ac533d95221dfbd67ddd09f",
+    "layouts/herdr-workspace.json": "6f6409c9b5855186362156ff1b5f511ab0bc848d7a2fef837068921863f49ad4",
+    "mods/compact-spaces/README.md": "7c08cc265c3b51cee9cb61d10af6681fb3440cc88346baac40009c41da999bce",
     "mods/compact-spaces/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
-    "mods/compact-spaces/main.js": "acae5b6658fdef5899c8772664c17284198ada841946c81e44fc2ac39cc35ee0",
+    "mods/compact-spaces/main.js": "bc6f8dd00955b897ca21234e070bfee5fdbfa4babc5eda10dfb4d400ad5acbc1",
     "mods/compact-spaces/mod.json": "8357ce89d375376872b6db414b9555b26936b2e9d61e44275dc2e2bfe2a5783e",
     "mods/compact-spaces/model.js": "e05e97f288d30026b53f165b12b8a04587039c690d9f4dc9164545f47e7e7849",
     "mods/session-tabs/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
@@ -195,6 +208,9 @@
     "mods/space-agents/model.js": "195d9aa10b5378f6b337bd6d16949bed3e7adb7cd9fa0b6025a59bd7a87d3984",
     "mods/space-agents/pull-request.svg": "d14295c0fb4e3664ace1d9d33556ff62fb317fb07c53eacde2d8303e05b7b067",
     "mods/space-agents/session-metadata.js": "56a6fccd558382e6f10fe9a4c184aa3793e383b04becf58696f554441d34d543",
-    "mods/space-agents/session-registry.js": "e58adb1c7bb98096333c9b64ee8d4d2b611b48e7facd2ea1ef8daec64fe2ee61"
+    "mods/space-agents/session-registry.js": "e58adb1c7bb98096333c9b64ee8d4d2b611b48e7facd2ea1ef8daec64fe2ee61",
+    "mods/workspace-header/jsconfig.json": "76f43dd8eb9005eee9ed713cc437052788bd3900bfb81f9b71d6f0a609e47f5c",
+    "mods/workspace-header/main.js": "efb894a3b8cdd9ff2331c86ebb8c3fb2db7bb6f8c2b18de2bdf5e04ab783c16e",
+    "mods/workspace-header/mod.json": "1161b84b62d9d607caf472fd454e8abab439155172bc629437408624817014cf"
   }
 }

@@ -5,7 +5,7 @@ Supported: macOS, Herdr 0.1.9, Node 26 or newer. Other platforms and versions ar
 ## Four separate steps
 
 1. **Dependencies.** `npm ci` in the repository root installs the installer's one dependency. It runs no lifecycle scripts and changes nothing else.
-2. **Install.** `node bin/herdr-workspace.mjs install` copies the layout, the three mods and a checked helper release into your Herdr app home. It runs `npm ci --ignore-scripts` inside the release folder to install the pinned Claude SDK and `jsonc-parser`.
+2. **Install.** `node bin/herdr-workspace.mjs install` copies the layout, the four mods and a checked helper release into your Herdr app home. It runs `npm ci --ignore-scripts` inside the release folder to install the pinned Claude SDK and `jsonc-parser`.
 3. **Harness setup (optional, opt-in).** Add `--configure-harnesses opencode,claude`. Without it, no harness file is read or written.
 4. **Select the layout (manual).** The installer never switches your layout:
    `herdr-app do layout.switch '{"name":"herdr-workspace"}'`

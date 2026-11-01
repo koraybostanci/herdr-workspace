@@ -16,7 +16,7 @@ test("fresh_install_without_existing_hooks", async t => {
   const receipt = await applyInstall(await planOf(h), { run: h.run });
   assert.equal(receipt.phase, "installed");
   const plan = await planOf(h);
-  for (const name of ["space-agents", "compact-spaces", "session-tabs"]) assert.ok(await stat(join(h.appHome, "mods", name, "main.js")));
+  for (const name of ["space-agents", "compact-spaces", "session-tabs", "workspace-header"]) assert.ok(await stat(join(h.appHome, "mods", name, "main.js")));
   assert.ok(await stat(join(h.appHome, "layouts/herdr-workspace.json")));
   // The layout is installed but never selected.
   assert.equal(await h.read(join(h.appHome, "shared.json")), null);

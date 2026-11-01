@@ -4,8 +4,8 @@ herdr-workspace is one installable bundle. Component boundaries stay inside it.
 
 | Part | Where | Runs in | Role |
 | --- | --- | --- | --- |
-| Layout | `layouts/herdr-workspace.json` | Herdr | Places the three owned mods and the built-in Files, Changes, chrome and status mods. |
-| Mods | `mods/{space-agents,compact-spaces,session-tabs}` | Herdr (native, sandboxed JS) | Spaces dropdown, agent cards, Session History and session tabs. |
+| Layout | `layouts/herdr-workspace.json` | Herdr | Places the four owned mods and the built-in Files, Changes, chrome and status mods. |
+| Mods | `mods/{space-agents,compact-spaces,workspace-header,session-tabs}` | Herdr (native, sandboxed JS) | Sidebar header, Spaces dropdown, agent cards, Session History and session tabs. |
 | Helper | `integrations/session-metadata` | Node 26 | Collects session metadata, inventories saved conversations and serves the sidebar. |
 | Adapters | `integrations/session-metadata/{opencode,claude}` | The harness | Observe sessions and feed the helper. |
 | Installer | `bin/herdr-workspace.mjs`, `src/` | Node 26 | Plans, installs, checks and removes the bundle. |
@@ -15,7 +15,7 @@ GitHub parsing, history grouping and session registry models have byte-identical
 
 ## What the host provides
 
-Herdr supplies the `herdr`, `gpui-kit` and `gpui-base` modules and the built-in mods the layout uses (`workspace-chrome`, `workspace-status`, `files`, `changes`, `pane`, `menu`, `new-menu`).
+Herdr supplies the `herdr`, `gpui-kit` and `gpui-base` modules and the built-in mods the layout uses (`workspace-chrome`, `workspace-status`, `files`, `changes`, `pane`, `menu`, `new-menu`, `picker`).
 OpenCode supplies its plugin and UI runtime. `bundle.json` declares each of these. Preflight checks them before any write and nothing is copied from the host.
 
 ## `bundle.json`

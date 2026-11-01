@@ -15,6 +15,7 @@
 
 | Piece | What it does |
 | --- | --- |
+| **Header** (`workspace-header`) | Left-aligned branding in fullscreen, with native window-button spacing retained in normal macOS windows. |
 | **Spaces** (`compact-spaces`) | A fixed 44-pixel dropdown that lists spaces grouped by machine. Its divider above Agents cannot be dragged. The popup opens downward. Keyboard highlight stays put, right-click opens actions, and you can reorder spaces on the same machine. |
 | **Agents and Session History** (`space-agents`) | Open agents and saved conversations in the selected Space, with a harness icon on every row. History offers Recent, By folder and By harness views, search and exact-session resume. |
 | **Session tabs** (`session-tabs`) | The tab strip, with the Files and Changes buttons. |
@@ -51,7 +52,7 @@ herdr-app do layout.switch '{"name":"herdr-workspace"}'
 ### Four separate steps
 
 1. `npm ci` installs the installer's own dependency. It changes nothing else.
-2. `install` copies the layout, the three mods and a checked helper release into your Herdr app home. It then runs `npm ci --ignore-scripts` inside that release to install the pinned Claude SDK and `jsonc-parser`.
+2. `install` copies the layout, the four mods and a checked helper release into your Herdr app home. It then runs `npm ci --ignore-scripts` inside that release to install the pinned Claude SDK and `jsonc-parser`.
 3. Harness setup is **opt-in**: add `--configure-harnesses opencode,claude`. Without it, no OpenCode or Claude file is read or written.
 4. Selecting the layout is always manual.
 
@@ -108,7 +109,7 @@ The Plan/Tasks panel, review system and Plan observers are no longer included. E
 
 ## Known limits
 
-- Native checks (`herdr-app check`) pass for all three mods. They do not test mouse, keyboard or pixels, so on-screen behaviour is not covered by automated tests here.
+- Native checks (`herdr-app check`) pass for all four mods. They do not test mouse, keyboard or pixels, so on-screen behaviour is not covered by automated tests here.
 - Naming is observe-only until it can be verified for your exact installation.
 
 More in [docs/limitations.md](docs/limitations.md).
@@ -130,7 +131,7 @@ After you edit a bundled file, run `node scripts/update-bundle.mjs` to refresh t
 bin/                    CLI entry point
 src/                    bundle validation, preflight, install plan, journal
 layouts/                the herdr-workspace layout
-mods/                   space-agents, compact-spaces, session-tabs
+mods/                   space-agents, compact-spaces, workspace-header, session-tabs
 integrations/           shared helper and the OpenCode and Claude adapters
 docs/                   installation, architecture, limitations
 tests/  scripts/        regression tests, privacy scan, clean-install proof

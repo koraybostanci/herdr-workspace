@@ -79,6 +79,23 @@ test('space popup anchors its top-left corner so it expands downward from the tr
   const view=await widget();
   assert.deepEqual(find(render(view),'space-selector').attributes.anchor,['top_left']);
 });
+test('space selector fills the row without a separate create button',async()=>{
+  const view=await widget(),tree=render(view);
+  assert.equal(find(tree,'space-new'),undefined);
+  assert.equal(tree.nodes.length,1);
+  assert.ok(tree.nodes[0].attributes.flex_1);
+  assert.ok(find(tree,'space-selector-trigger').attributes.w_full);
+});
+test('expanded selector and every selectable dropdown row are left aligned',async()=>{
+  const view=await widget(),tree=render(view);
+  assert.ok(find(tree,'space-selector-trigger').attributes.justify_start);
+  assert.ok(find(tree,'space-selector-trigger').attributes.text_left);
+  for(const row of view.menuRows().filter(row=>row.enabled)){
+    const option=find(tree,row.id?'space-option-'+row.id:row.key);
+    assert.ok(option.attributes.justify_start,row.label);
+    assert.ok(option.attributes.text_left,row.label);
+  }
+});
 test('dropdown keyboard highlight survives insertion and activates only its stable space ID',async()=>{
   const view=await widget();view.open=true;view.menuFocus.focus();
   let tree=render(view),menu=find(tree,'space-selector-menu');assert.ok(menu);assert.equal(menu.attributes.track_focus[0],view.menuFocus);
@@ -104,10 +121,10 @@ test('opening/cancelling selector does not change real space selection or select
   const menu=find(render(view),'space-selector-menu');menu.attributes.on_key_down[0]({key:'escape'},context());
   assert.deepEqual(agentCards(state.data).map(card=>card.address),before);assert.deepEqual(before,['a']);assert.deepEqual(state.commands,[]);
 });
-test('compact trigger preserves avatar color and attention, and create targets current space machine',async()=>{
+test('compact trigger preserves avatar color and attention, and dropdown create targets its exact machine',async()=>{
   const view=await widget(),tree=render(view),trigger=find(tree,'space-selector-trigger');
   assert.ok(text(trigger).includes('Project'));assert.ok(find(trigger,'space-current-attention'));
-  state.data.selectedSpace=remote.id;find(render(view),'space-new').attributes.on_click[0]({},context());
+  state.data.selectedSpace=remote.id;find(render(view),'create:"devbox"').attributes.on_click[0]({},context());
   assert.deepEqual(state.commands,[{name:'space.new',args:{machine:'devbox'}}]);
 });
 
@@ -118,8 +135,9 @@ test('removing the highlighted space does not silently activate the replacement 
   assert.deepEqual(state.commands,[]);
 });
 
-test('stale current-space create never falls back locally after a selected remote space disappears',async()=>{
+test('dropdown keeps explicit remote create after the selected remote space disappears',async()=>{
   const view=await widget();state.data.selectedSpace=remote.id;
-  const create=find(render(view),'space-new').attributes.on_click[0];
-  state.data.allSpaces=[local];create({},context());assert.deepEqual(state.commands,[]);
+  const create=find(render(view),'create:"devbox"').attributes.on_click[0];
+  state.data.allSpaces=[local];create({},context());
+  assert.deepEqual(state.commands,[{name:'space.new',args:{machine:'devbox'}}]);
 });

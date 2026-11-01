@@ -285,7 +285,7 @@ export default class Spaces extends View {
       .child(svg(`mods/workspace-chrome/${row.machine ? "server" : "monitor"}.svg`).size(13)).child(row.label);
     if (row.kind === "unavailable") return div().id(row.key).px(8).py(6).text_size(11).text_color(t.dim).child(row.label);
     const highlighted = row.key === this.highlightedKey;
-    return Button.new(row.id ? `space-option-${row.id}` : row.key).min_h(32).w_full().px(8).py(5).gap(8).rounded(6).items_center()
+    return Button.new(row.id ? `space-option-${row.id}` : row.key).min_h(32).w_full().px(8).py(5).gap(8).rounded(6).items_center().justify_start().text_left()
       .bg(highlighted ? t.selected : t.popover).text_color(row.enabled ? t.foreground : t.dim).text_size(12).disabled(!row.enabled)
       .hover(style => style.bg(t.hover)).focus(style => style.border_color(t.accent)).role("list_box_option").aria_selected(Boolean(row.selected))
       .when(highlighted, el => el.aria_active_descendant()).accessibility_label(`${row.label}${row.machine ? " on " + row.machine : ""}${row.selected ? ", selected" : ""}`)
@@ -330,6 +330,7 @@ export default class Spaces extends View {
     if (this.highlightedKey === null) this.highlightedKey = active.find(row => row.selected)?.key ?? active[0]?.key ?? null;
     const label = current ? `Space: ${current.name}${current.machine ? " on " + current.machine : ""}` : "Choose a space";
     const trigger = Button.new("space-selector-trigger").h(32).w_full().min_w(0).px(collapsed ? 4 : 8).gap(collapsed ? 0 : 8).rounded(7).relative()
+      .when(!collapsed, el => el.justify_start().text_left())
       .bg(t.raised).text_color(t.foreground).border(1).border_color(t.border).hover(style => style.bg(t.hover))
       .focus(style => style.border_color(t.accent)).track_focus(this.triggerFocus).accessibility_label(label).tooltip(label)
       .on_mouse_down("right", () => { if (current && resolveSpaceAction("space:" + current.id, this.liveState())) this.menu(current); })
@@ -352,16 +353,8 @@ export default class Spaces extends View {
         .overflow_y_scrollbar().track_focus(this.menuFocus).role("list_box").accessibility_label("Spaces")
         .on_key_down((event, cx) => this.menuKey(event, cx)).children(rows.map(row => this.option(row, t)))
         .when(Boolean(this.menuError), el => el.child(div().px(8).py(5).text_size(11).text_color(t.blocked).child(this.menuError))));
-    return h_flex().size_full().min_w(0).px(collapsed ? 4 : 8).gap(5).items_center().bg(t.chrome).text_size(13)
-      .child(div().flex_1().min_w(0).child(popup))
-      .when(!collapsed, el => el.child(Button.new("space-new").size(28).flex_none().rounded(5).text_color(t.muted)
-        .hover(style => style.bg(t.hover).text_color(t.foreground)).focus(style => style.border_color(t.accent))
-        .accessibility_label("Create a space").tooltip(current?.machine ? "New space on " + current.machine : "New space")
-        .on_click((_event, cx) => {
-          if ((this.currentSpace()?.id ?? null) !== (current?.id ?? null)) return;
-          this.activate("create:" + JSON.stringify(current?.machine ?? null), cx);
-        })
-        .child(svg("mods/workspace-chrome/plus.svg").size(14))));
+    return h_flex().size_full().min_w(0).px(collapsed ? 4 : 8).items_center().bg(t.chrome).text_size(13)
+      .child(div().flex_1().min_w(0).child(popup));
   }
 
   close() { this.watching.clear(); this.triggerFocus.release(); this.menuFocus.release(); }
