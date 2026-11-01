@@ -16,7 +16,7 @@
 | Piece | What it does |
 | --- | --- |
 | **Spaces** (`compact-spaces`) | A fixed 44-pixel dropdown that lists spaces grouped by machine. Its divider above Agents cannot be dragged. The popup opens downward. Keyboard highlight stays put, right-click opens actions, and you can reorder spaces on the same machine. |
-| **Agents** (`space-agents`) | Compact cards for the sessions in the selected space. A card shows the title, branch and pull request. Successful project work counts toward the card. Diagnostic Git reads and generated reports do not. |
+| **Agents and Session History** (`space-agents`) | Open agents and saved conversations in the selected Space, with a harness icon on every row. History offers Recent, By folder and By harness views, search and exact-session resume. |
 | **Session tabs** (`session-tabs`) | The tab strip, with the Files and Changes buttons. |
 | **Helper** | A small Node program that collects session metadata. OpenCode and Claude adapters feed it. |
 
@@ -81,6 +81,16 @@ See [docs/installation.md](docs/installation.md) for the full list of what chang
 ## Privacy
 
 Naming only *observes* sessions. The bundle contains no credentials, session data or logs, and `npm run check:privacy` enforces that on every tracked file.
+
+Session History reads native Claude Code and OpenCode V2 metadata, including saved conversations created outside Herdr. It keeps a private local catalog, not a copy of transcripts. A native session title can itself contain private prompt text. Uninstall preserves the catalog.
+
+## Session placement
+
+The selected Space filters both sections before view selection, search or counts. A resolved conversation appears once. Clicking a History row opens it for browsing without moving it to Agents. A new message or actual work activates it; it then stays in **Agents** even when idle or done, until closed. Working, blocked, done and idle remain activity badges, not placement rules. Disconnects retain the last confirmed placement.
+
+Verified Space associations take priority. External conversations without one match the exact directory and machine; Spaces sharing a directory can discover the same history. Subdirectories and worktrees are not silently combined. History also holds sessions opened only for viewing; it does not claim that a conversation is stopped everywhere, and external activity can be unknown.
+
+History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#session-history) for states and limits.
 
 ## Plan feature removed
 

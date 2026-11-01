@@ -86,6 +86,14 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
   if (npmBin) await symlink(npmBin, join(bin, "npm"));
   const stub = (name, body) => writeFile(join(bin, name), `#!${process.execPath}\n${body}\n`, { mode: 0o755 });
   await stub("herdr-app", "console.log('herdr-app 0.1.9')");
+  await stub("opencode", `const args=process.argv.slice(2);
+    if(args[0]==="service"&&args[1]==="status") console.log("http://127.0.0.1:4096");
+    else if(args[0]==="api"&&args[1]==="get"&&args[2]==="/api/session") console.log(JSON.stringify({data:[
+      {id:"ses_installed_one",title:"Installed history fixture",location:{directory:process.env.HOME+"/project"},time:{created:1,updated:2}},
+      {id:"ses_installed_two",title:"Other Space fixture",location:{directory:process.env.HOME+"/other-project"},time:{created:1,updated:3}}
+    ],cursor:{next:null}}));
+    else if(args[0]==="--version") console.log("2.2.5");
+    else process.exitCode=1;`);
   const cleanEnv = {
     HOME: fixtureHome, PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`, LANG: "C.UTF-8", TMPDIR: join(fixtureHome, "tmp"),
     npm_config_cache: join(tmpRoot, "npm-cache"), npm_config_update_notifier: "false", npm_config_audit: "false", npm_config_fund: "false", npm_config_prefer_offline: "true",
@@ -206,6 +214,18 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
     await writeFile(join(stateRoot, "v2/state.sqlite"), "synthetic legacy reviews");
   });
 
+  await check("installed helper serves Space-filtered history", async () => {
+    if (!installed) fail("not installed");
+    const descriptor = JSON.parse(await readFile(join(appHome, "data/space-agents/runtime.json"), "utf8"));
+    for (const [id, folder, title] of [["first", "project", "Installed history fixture"], ["second", "other-project", "Other Space fixture"]]) {
+      const request = { space: { host: "local", coreSession: "default", id, machine: null, folder: join(fixtureHome, folder) },
+        view: "recent", query: "", offset: 0, limit: 50, requestId: id };
+      const result = await run(descriptor.node, [descriptor.helperPath, "history-view", "--request", JSON.stringify(request), "--json", "--app-home", appHome, "--state-root", stateRoot], { cwd: appHome });
+      const value = JSON.parse(result.stdout);
+      if (result.code !== 0 || value.owner !== "herdr-session-metadata" || value.history?.length !== 1 || value.history[0].title !== title || value.total !== 1) fail("history was unavailable or leaked another Space");
+    }
+  });
+
   await check("no references to the source checkout", async () => {
     const needles = [SOURCE_CHECKOUT, exportRoot];
     const hits = [];
@@ -235,6 +255,12 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
     if (!(await exists(join(stateRoot, "v2/state.sqlite")))) fail("review data was removed");
     for (const [path, text] of Object.entries(settings)) if ((await readFile(path, "utf8")) !== text) fail(`${relative(fixtureHome, path)} differs from the original`);
     for (const path of [opencodePath, claudePath]) if (!(path in settings) && await exists(path)) fail(`created settings file ${relative(fixtureHome, path)} was not removed`);
+  });
+
+  await check("uninstall retains private session history", async () => {
+    if (!installed) fail("not installed");
+    const catalog = JSON.parse(await readFile(join(stateRoot, "history/registry.json"), "utf8"));
+    if (catalog.owner !== "herdr-session-metadata" || catalog.sessions.length !== 2) fail("private catalog was removed or changed");
   });
 
   const npmIgnoresScripts = /^ignore-scripts\s*=\s*true\s*$/m.test(await readFile(join(exportRoot, ".npmrc"), "utf8").catch(() => ""));

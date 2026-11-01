@@ -2,11 +2,11 @@ import { sessionKey } from "../src/contracts.mjs";
 import { applyPeerPending } from "../src/pending.mjs";
 import { operationScope } from "../src/scope.mjs";
 
-export function executionScope(argv, options) {
+export function executionScope(argv, options, sources = []) {
   const index = argv.findIndex(a => a === "--server" || a.startsWith("--server="));
   if (index < 0) return { host: options.host ?? "local", authority: options.authority ?? "local" };
   const origin = argv[index] === "--server" ? argv[index + 1] : argv[index].slice(9);
-  const configured = options.servers?.[origin];
+  const configured = options.servers?.[origin] ?? sources.find(s => s.harness === "opencode-v2" && s.server === origin);
   return configured?.host && configured?.authority ? { host: configured.host, authority: configured.authority } : null;
 }
 
@@ -18,6 +18,7 @@ export function unwrapSession(value, id) {
 export function createOpenCodeAdapter(context, deps) {
   const scope = deps.scope ?? { host: context.options?.host ?? "local", authority: context.options?.authority ?? "local" };
   let binding = null, disposed = false, running = null, rerun = false;
+  const pendingWork = new Map();
   const routeId = () => {
     const route = context.ui.router.current();
     return route?.type === "session" ? route.sessionID : null;
@@ -53,6 +54,14 @@ export function createOpenCodeAdapter(context, deps) {
       next.lookupDir = info.location?.directory ?? null;
       if (!await deps.identity.commit(next) || !stillCurrent(id)) return;
       binding = next;
+      if (pendingWork.has(id)) {
+        await deps.store.activateSessionBinding(binding, { observedAt: pendingWork.get(id) });
+        pendingWork.delete(id);
+      }
+      await deps.store.withMutation(session, async () => {
+        const previous = await deps.store.read(session);
+        if (previous?.ended) await deps.store.write({ ...previous, ended: false, pendingRename: null, revision: previous.revision + 1 }, previous.revision);
+      });
       await context.data.session.message.sync(id);
     }
     const current = binding;
@@ -91,6 +100,17 @@ export function createOpenCodeAdapter(context, deps) {
     await deps.publish?.();
   }
   const adapter = {
+    async observeWork(event) {
+      const userInput = event?.type === "session.inbox.enqueued" && event.data?.item?.type === "user";
+      if ((!userInput && event?.type !== "session.execution.started") || !Number.isSafeInteger(event.created) || !stillCurrent(event.data?.sessionID)) return false;
+      if (!binding || binding.session.id !== event.data.sessionID) {
+        pendingWork.set(event.data.sessionID, Math.max(pendingWork.get(event.data.sessionID) ?? 0, event.created));
+        return false;
+      }
+      const activated = await deps.store.activateSessionBinding(binding, { observedAt: event.created });
+      if (activated) await deps.publish?.();
+      return activated;
+    },
     refresh() {
       if (running) { rerun = true; return running; }
       running = refreshNow().finally(() => { running = null; if (rerun && !disposed) { rerun = false; void adapter.refresh().catch(() => {}); } });
@@ -109,7 +129,7 @@ export function createOpenCodeAdapter(context, deps) {
       if (!binding || !stillCurrent(binding.session.id) || request.generation !== binding.generation) return null;
       return applyPeerPending(request, { ...deps, access, validateOwner: b => stillCurrent(b.session.id) && deps.identity.validate(b) });
     },
-    async dispose() { disposed = true; await release(); },
+    async dispose() { disposed = true; pendingWork.clear(); await release(); },
   };
   return adapter;
 }

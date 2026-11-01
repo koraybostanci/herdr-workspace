@@ -2,7 +2,10 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Button, Popover } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, layout, shared, setShared, setAgentOrder, exec, knownAgents, appHome, readTextFile, watchFolder } from "herdr";
 import { agentCards, agentGroups, agentViewMode, WorkingDirectories, PullRequests, cardPullRequest, repositoryLabel } from "./model.js";
-import { readSessionView, projectSessionCard } from "./session-metadata.js";
+import { readSessionView, projectSessionCard, readLiveSessionBindings } from "./session-metadata.js";
+import { HistoryController } from "./history-controller.js";
+import { renderSessionHistory } from "./history-ui.js";
+import { historyProgram, historyViewMode } from "./history-model.js";
 
 const STATUS = { working: "Working", blocked: "Needs you", done: "Done", idle: "Idle" };
 
@@ -22,6 +25,10 @@ function harness(program, color, size = 18) {
     : svg(path).size(size).flex_none().text_color(color);
 }
 
+function showsAgents(node = layout()) {
+  return node?.content?.mod === "space-agents" || (node?.children ?? []).some(showsAgents);
+}
+
 export default class SpaceAgents extends View {
   init(_props, cx) {
     this.prs = new PullRequests();
@@ -32,6 +39,9 @@ export default class SpaceAgents extends View {
     this.viewMenuIndex = 0;
     this.keyboardAddress = null;
     this.knownAgentKeys = [];
+    this.knownPrograms = [];
+    this.history = new HistoryController();
+    this.history.init(cx);
     this.sessionView = null;
     this.refreshingMetadata = false;
     this.metadataFingerprint = "";
@@ -42,19 +52,20 @@ export default class SpaceAgents extends View {
         cx.notify();
         try {
           const changed = await watchFolder(directory);
-          if (shared("layout") === "herdr-workspace" && changed.some(path => path.endsWith("producer-changed.json"))) this.refreshMetadata(cx);
+          if (showsAgents() && changed.some(path => path.endsWith("producer-changed.json"))) this.refreshMetadata(cx);
         } catch { break; }
       }
     });
     cx.timer.every(15000, cx => {
-      if (shared("layout") === "herdr-workspace") this.refreshMetadata(cx);
+      if (showsAgents()) this.refreshMetadata(cx);
     });
     cx.spawn(async (cx) => {
-      this.knownAgentKeys = (await knownAgents()).map(program => program.key);
+      this.knownPrograms = await knownAgents();
+      this.knownAgentKeys = this.knownPrograms.map(program => program.key);
       cx.notify();
     });
     cx.timer.every(60000, (cx) => {
-      if (shared("layout") === "herdr-workspace") cx.notify();
+      if (showsAgents()) cx.notify();
     });
   }
 
@@ -74,9 +85,17 @@ export default class SpaceAgents extends View {
             "--app-home", home, "--state-root", runtime.stateRoot]);
         } else await exec("node", [`${home}/integrations/session-metadata/bin/herdr-session-meta.mjs`, "refresh-view", "--json"]);
         this.sessionView = JSON.parse(await readTextFile(`${appHome()}/data/space-agents/session-view.json`) ?? "null");
-      } catch {} finally { this.refreshingMetadata = false; cx.notify(); }
+      } catch {} finally { this.refreshingMetadata = false; this.history.refresh(cx); cx.notify(); }
     });
   }
+
+  focusCard(card) {
+    if (card.connection === "unavailable") return;
+    if (card.pane) run("pane.focus", { pane: card.pane });
+    else run("agent.focus", { terminal: card.address });
+  }
+
+  close() { this.history.close(); }
 
   viewOptions(t, mode) {
     const options = [{ value: "list", label: "List (default)" }, { value: "repository", label: "Group by repository" }];
@@ -132,7 +151,7 @@ export default class SpaceAgents extends View {
       .cursor_pointer().hover(el => el.bg(card.focused ? t.selected : t.hover).border_color(selected ? t.accent : t.input))
       .role("list_box_option").accessibility_label(description).aria_selected(card.focused)
       .when(this.keyboardAddress === card.address, el => el.aria_active_descendant())
-      .on_click(() => run("pane.focus", { pane: card.pane }));
+      .on_click(() => this.focusCard(card));
 
     if (compact) return root.p(8).tooltip(description)
       .child(h_flex().items_center().justify_center().gap(5).child(harness(card.program, t.foreground)).child(mark()));
@@ -162,7 +181,9 @@ export default class SpaceAgents extends View {
               cx.open_url(pr.url);
             }))
           .child(svg("mods/space-agents/pull-request.svg").size(11))
-          .child(`#${pr.number}`))));
+           .child(`#${pr.number}`))))
+      .when(card.connection === "unavailable", el => el.child(div().pl(24).text_size(11).text_color(t.muted).child("Connection unavailable")))
+      .when(Boolean(card.identityPending), el => el.tooltip("Session identity is unavailable. Enable the harness metadata integration to reconcile history."));
   }
 
   render(cx) {
@@ -171,22 +192,50 @@ export default class SpaceAgents extends View {
     const selectedSpace = focused()?.space ?? allSpaces.find(s => s.active)?.id;
     const space = allSpaces.find(s => s.id === selectedSpace);
     const liveTerminals = terminals();
+    const allPanes = panes();
     const records = readSessionView(this.sessionView, liveTerminals);
     const mode = agentViewMode(shared("space-agents.view"));
     const grouped = mode === "repository";
-    const observed = agentCards({ allAgents: agents(), allSpaces, allPanes: panes(), allTerminals: liveTerminals, selectedSpace, knownAgentKeys: this.knownAgentKeys });
+    const allAgents = agents();
+    const observed = agentCards({ allAgents, allSpaces, allPanes, allTerminals: liveTerminals, selectedSpace, knownAgentKeys: this.knownAgentKeys });
     const projected = observed.map(card => records.has(card.address) ? projectSessionCard(card, records.get(card.address)) : { ...card, ...this.workingDirs.peek(card) })
       .map(card => ({ ...card, projectRepo: card.projectRepo ?? cardPullRequest(card, this.prs.peek(card))?.repo ?? null }));
-    const groups = grouped ? agentGroups(projected) : [];
-    const cards = grouped ? groups.flatMap(group => group.cards) : projected;
+    const bound = readLiveSessionBindings(this.sessionView, liveTerminals), presence = [];
+    const mapped = this.history.registry.sources.find(s => s.machine === space?.machine && s.machine != null);
+    const remembered = this.history.space?.id === space?.id ? this.history.space : this.history.contexts.get(JSON.stringify([space?.id, space?.machine ?? null]));
+    const coreSession = [...bound.values()].find(e => observed.some(c => c.address === (e.binding.viewTerminal ?? e.binding.terminal)))?.binding.coreSession ?? remembered?.coreSession ?? "default";
+    this.history.setSpace(space ? { id: space.id, machine: space.machine ?? null, host: mapped?.host ?? space.machine ?? "local", coreSession, folder: space.folder } : null);
+    for (const [address, entry] of bound) {
+      const pane = allPanes.find(p => p.terminal === address), agent = allAgents.find(a => a.address === address);
+      const owner = allSpaces.find(s => s.id === agent?.space || s.tabs.some(tab => tab.id === pane?.tab));
+      const program = agent?.program ?? pane?.program, expected = entry.binding.session.harness === "claude" ? "claude" : "opencode";
+      if (!owner || program?.key !== expected) continue;
+      presence.push({ state: "open", binding: { ...entry.binding, address, title: entry.record.canonicalTitle || agent?.title || program.name,
+        space: { host: owner.machine ? entry.binding.session.host : "local", coreSession: entry.binding.coreSession, id: owner.id },
+        tab: agent?.tab ?? pane?.tab, pane: pane?.pane ?? agent?.pane ?? null, focused: agent?.focused ?? pane?.focused ?? false,
+        activity: agent?.status ?? pane?.status ?? null, directory: entry.binding.lookupDir } });
+    }
+    const partition = this.history.partition(presence);
+    const covered = new Set([...partition.agents, ...partition.history].flatMap(row => row.bindings.map(b => b.address)).concat(presence.map(o => o.binding.address)));
+    const resolved = partition.agents.map(row => {
+      const card = projected.find(c => c.address === row.primaryBinding.address);
+      return { ...card, address: row.primaryBinding.address, pane: card?.pane ?? row.primaryBinding.pane, title: card?.title ?? row.title,
+        cwd: card?.cwd ?? row.directory, directory: card?.directory ?? row.directory?.split(/[\\/]/).pop() ?? "Directory unavailable",
+        program: historyProgram(row.session, this.knownPrograms), status: row.activity, connection: row.connection, focused: row.primaryBinding.focused,
+        machine: space?.machine ?? null, sessionBound: true, sessionKey: row.key, session: row.session };
+    });
+    const displayCards = [...resolved, ...projected.filter(c => !covered.has(c.address)).map(c => ({ ...c, identityPending: true }))];
+    const groups = grouped ? agentGroups(displayCards) : [];
+    const cards = grouped ? groups.flatMap(group => group.cards) : displayCards;
     const fingerprint = JSON.stringify(cards.map(c => [c.address, c.title, c.status, c.cwd, c.branch]));
-    if (fingerprint !== this.metadataFingerprint && shared("layout") === "herdr-workspace") {
+    if (fingerprint !== this.metadataFingerprint && showsAgents()) {
       this.metadataFingerprint = fingerprint;
       this.refreshMetadata(cx);
     }
+    if (space && !this.history.currentRequest) this.history.refresh(cx);
     const compact = (sidebar(layout())?.size?.px ?? 320) < 160;
     if (!cards.some(c => c.address === this.keyboardAddress)) this.keyboardAddress = (cards.find(c => c.focused) ?? cards[0])?.address ?? null;
-    setAgentOrder(cards.map(c => c.address));
+    setAgentOrder(cards.filter(c => c.connection !== "unavailable").map(c => c.address));
     for (const card of observed) {
       if (records.has(card.address) || !this.workingDirs.needs(card)) continue;
       cx.spawn(async cx => { await this.workingDirs.refresh(card, exec); cx.notify(); });
@@ -199,18 +248,24 @@ export default class SpaceAgents extends View {
       });
     }
 
+    const folded = shared("space-agents.sections") ?? {};
+    this.history.mode = historyViewMode(shared("space-agents.history.view"));
+    const historyGroups = this.history.groups(partition.history), historyRows = historyGroups.flatMap(g => g.rows);
     return v_flex().id("space-agents").size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border)
       .role("region").accessibility_label(`Agents in ${space?.name ?? "selected space"}`)
+      .child(v_flex().id("space-agent-scroll").flex_1().min_h(0).overflow_y_scrollbar().mode("always")
       .when(!compact, el => el.child(h_flex().h(48).px(14).gap(8).flex_none().items_center()
-        .child(div().text_size(13).font_medium().text_color(t.foreground).child("Agents"))
+        .child(Button.new("agents-section-toggle").h(28).gap(6).items_center().cursor_pointer().accessibility_label(folded.agents ? "Expand Agents" : "Collapse Agents")
+          .on_click((_e, cx) => this.history.toggle("agents", cx)).child(svg(`mods/workspace-chrome/chevron-${folded.agents ? "right" : "down"}.svg`).size(12).text_color(t.muted))
+          .child(div().text_size(13).font_medium().text_color(t.foreground).child("Agents")))
         .child(div().flex_1().min_w(0).text_size(12).text_color(t.muted).truncate().child(space?.name ?? "No space selected"))
         .child(div().text_size(12).text_color(t.muted).child(String(cards.length)))
         .child(this.viewOptions(t, mode))))
-      .when(cards.length === 0 && !compact, el => el.child(v_flex().px(14).pb(16).gap(6)
+      .when(cards.length === 0 && !compact && !folded.agents, el => el.child(v_flex().px(14).pb(16).gap(6)
         .child(div().text_size(13).text_color(t.foreground).child(space ? "No agents in this space" : "Select a space"))
         .child(div().text_size(12).text_color(t.muted).child(space ? "Start an agent in a tab to see it here." : "Its agents will appear here."))))
-      .child(v_flex().id(`space-agent-list-${selectedSpace ?? "none"}`).flex_1().min_h(0)
-        .px(compact ? 4 : 10).pt(compact ? 8 : 0).pb(10).gap(6).overflow_y_scrollbar().mode("always")
+      .child(v_flex().id(`space-agent-list-${selectedSpace ?? "none"}`).flex_none().min_h(0)
+        .px(compact ? 4 : 10).pt(compact ? 8 : 0).pb(10).gap(6)
         .role("list_box").accessibility_label(`Agents in ${space?.name ?? "selected space"}`)
         .track_focus(this.handle).tab_stop(true)
         .on_key_down((event, cx) => {
@@ -218,19 +273,20 @@ export default class SpaceAgents extends View {
           const index = Math.max(0, cards.findIndex(c => c.address === this.keyboardAddress));
           if (event.keystroke === "enter" || event.keystroke === "space") {
             cx.stop_propagation();
-            run("pane.focus", { pane: cards[index].pane });
+            this.focusCard(cards[index]);
           } else if (event.keystroke === "up" || event.keystroke === "down") {
             cx.stop_propagation();
             this.keyboardAddress = cards[(index + (event.keystroke === "down" ? 1 : cards.length - 1)) % cards.length].address;
             cx.notify();
           }
         })
-        .children(grouped ? groups.map((group, index) => v_flex().id(`space-agent-group-${index}`).w_full().flex_none().gap(6).role("group")
+        .children(folded.agents ? [] : grouped ? groups.map((group, index) => v_flex().id(`space-agent-group-${index}`).w_full().flex_none().gap(6).role("group")
           .accessibility_label(`${group.name}, ${group.cards.length} agents`)
           .when(!compact, el => el.child(h_flex().px(8).pt(8).pb(3).gap(6).items_center().text_size(11.5).text_color(t.muted)
             .child(div().flex_1().min_w(0).truncate().font_medium().tooltip(group.tooltip).child(group.name))
             .child(div().flex_none().child(String(group.cards.length)))))
           .children(group.cards.map(card => this.card(card, compact, t, true)))) : cards.map(card => this.card(card, compact, t))))
+      .child(renderSessionHistory({ rows: historyRows, groups: historyGroups, controller: this.history, compact, theme: t, knownPrograms: this.knownPrograms, folded: Boolean(folded.history) })))
       .when(compact, el => el.child(h_flex().h(32).flex_none().justify_center().items_center()
         .child(Button.new("expand-space-sidebar").p(6).rounded(5).cursor_pointer().text_color(t.muted)
           .accessibility_label("Expand sidebar")

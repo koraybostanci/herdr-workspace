@@ -93,6 +93,7 @@ export async function verifyInheritedBinding({ env, producerPid, session, run })
   if (!isHerdrTerminal(term) || !await producerMatches(term, producerPid, run, options)) return null;
   return { coreHost: "local", coreSession: env.HC_SESSION ?? "default", terminal: env.HC_TERMINAL_ID,
     createdMs: term.created_ms, processPid: producerPid, generation: randomUUID(), session,
+    space: { host: session.host, coreSession: env.HC_SESSION ?? "default", id: term.labels["herdr.space"] }, tab: term.labels["herdr.tab"],
     lookupDir: null, mode: "inherited" };
 }
 export async function bindingIsLive(binding, run, allowPaired = false) {

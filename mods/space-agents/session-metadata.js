@@ -3,6 +3,23 @@ import { prMetadata } from "./model.js";
 const sessionKey = key => JSON.stringify([key.host, key.authority, key.harness, key.id]);
 const bindingKey = b => JSON.stringify([b.coreHost, b.coreSession, b.terminal, b.createdMs]);
 const validRepository = repo => repo?.host === "github.com" && /^[\w.-]+$/.test(repo.owner ?? "") && /^[\w.-]+$/.test(repo.name ?? "");
+export function readLiveSessionBindings(raw, liveTerminals) {
+  const entries = new Map();
+  if (raw?.schema !== 1 || raw.owner !== "herdr-session-metadata" || !Array.isArray(raw.entries)) return entries;
+  for (const entry of raw.entries) {
+    const { binding: b, record: r } = entry ?? {};
+    if (!b?.session || !r?.session || r.schema !== 1 || r.ended || !Array.isArray(r.bindings) || sessionKey(b.session) !== sessionKey(r.session)) continue;
+    const key = bindingKey(b);
+    if (!r.bindings.some(proof => proof.key === key && proof.generation === b.generation)) continue;
+    for (const terminal of liveTerminals) {
+      if (terminal.state !== "live" || terminal.created_ms !== b.createdMs || terminal.address !== (b.viewTerminal ?? b.terminal)) continue;
+      let proof;
+      try { proof = JSON.parse(terminal.labels?.["herdr.meta-binding"] ?? "null"); } catch { continue; }
+      if (proof?.key === key && proof.generation === b.generation) entries.set(terminal.address, entry);
+    }
+  }
+  return entries;
+}
 export function readSessionView(raw, liveTerminals) {
   const records = new Map();
   if (raw?.schema !== 1 || raw.owner !== "herdr-session-metadata" || !Array.isArray(raw.entries)) return records;

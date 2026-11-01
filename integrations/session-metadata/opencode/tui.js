@@ -8,16 +8,20 @@ import { applyObservation } from "../src/engine.mjs";
 import { createOpenCodeAdapter, executionScope } from "./adapter.mjs";
 import { acceptPairing, ownerIsLive } from "../src/transport.mjs";
 import { watchMailbox } from "../src/pending.mjs";
+import { historySources } from "../src/history-catalog.mjs";
 
 export default Plugin.define({
   id: "herdr.session-metadata",
   async setup(context) {
     if (!process.env.HC_TERMINAL_ID && !process.env.HERDR_METADATA_HOST) return () => {};
-    const scope = executionScope(process.argv, context.options ?? {});
-    if (!scope) return () => {};
-    if (scope.host === "local" && process.env.HERDR_METADATA_HOST) scope.host = process.env.HERDR_METADATA_HOST;
     const runtime = createRuntime({ ...process.env, HERDR_APP_HOME: context.options?.appHome ?? process.env.HERDR_APP_HOME,
       HERDR_METADATA_STATE_DIR: context.options?.stateRoot ?? process.env.HERDR_METADATA_STATE_DIR });
+    let scope = executionScope(process.argv, context.options ?? {});
+    if (!scope) {
+      try { scope = executionScope(process.argv, context.options ?? {}, await historySources(runtime)); } catch {}
+    }
+    if (!scope) return () => {};
+    if (scope.host === "local" && process.env.HERDR_METADATA_HOST) scope.host = process.env.HERDR_METADATA_HOST;
     let paired = null;
     const identity = {
       enabled: true,
@@ -41,7 +45,7 @@ export default Plugin.define({
           try { proof = JSON.parse(JSON.parse(term.stdout).labels?.["herdr.meta-binding"] ?? "null"); } catch {}
           if (proof?.generation === binding.generation) await runtime.run("local", "hc", ["label", binding.terminal, "herdr.meta-binding="], { env: { HC_SESSION: binding.coreSession } });
         }
-        await runtime.store.invalidate(JSON.stringify([binding.coreHost, binding.coreSession, binding.terminal, binding.createdMs]), binding.generation);
+        await runtime.store.releaseSessionBinding(binding);
       },
     };
     const adapter = createOpenCodeAdapter(context, { ...runtime, scope, identity, engine: applyObservation,
@@ -67,7 +71,10 @@ export default Plugin.define({
       lastFingerprint = fingerprint;
       void adapter.refresh().catch(() => { lastFingerprint = ""; });
     };
-    const stopEvents = context.data.listen(request);
+    const stopEvents = context.data.listen(event => {
+      void adapter.observeWork(event?.details ?? event).catch(() => {});
+      request();
+    });
     const stopSlot = context.ui.slot({ append: "app", render: () => { createEffect(request); return null; } });
     if (process.env.HERDR_METADATA_PAIR_TOKEN) {
       try { await adapter.pair(process.env.HERDR_METADATA_PAIR_TOKEN); } catch {}

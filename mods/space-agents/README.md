@@ -63,6 +63,33 @@ Unbound agents discover repository identity independently of PRs, so clones and
 worktrees still group together when they have no open PR. Unpaired SSH/remote-server
 panes do not authorize local filesystem probes from their reported paths.
 
+## Session History
+
+Session History sits below Agents in the same scrollable sidebar. Each section folds independently. Both use the selected Space as their outer filter; there is no All workspaces option. Every visible session keeps its harness icon, even in the narrow sidebar.
+
+- **Recent**: newest native update first, under Today, Yesterday and Older.
+- **By folder**: separate full directory/machine groups, including separate worktrees.
+- **By harness**: Claude Code and OpenCode, newest first within each group.
+
+The History view is remembered independently of the Agents view. Search matches titles and paths inside the selected Space. Load more reveals another bounded page. Incomplete discovery shows a warning and a known-count indicator rather than claiming the list is complete.
+
+History rows are a dense 28px single-line list: harness icon, title and compact age. Folder/machine details and errors are in the tooltip. There are no Resume buttons, action links or second metadata lines.
+
+The section boundary distinguishes browsing from activated work:
+
+| Condition | Section |
+| --- | --- |
+| Activated in Herdr, including later idle/done or no status | Agents |
+| Opened from History for viewing, without a new message/work start | Session History |
+| Saved with no open Herdr binding | Session History |
+| Connection unavailable | Last confirmed section, with a warning |
+
+Verified Space associations win over folder discovery. Conversations created outside Herdr match the exact directory and machine. A single conversation with several bindings has one row; closing one binding does not close the others. Session switches and last-binding exits move the identity between sections. External activity can remain unknown.
+
+Click a History row, or focus the list and use Up/Down then Enter/Space. The helper rechecks the exact native ID, original folder and harness before preparing a launch. Already-open sessions are focused. Merely opening, viewing or scrolling keeps the session in History; sending a new message or starting work moves it to Agents. Startup metadata and historical replay do not count as interaction. Repeated clicks while opening do not create another tab. Failed lookup never creates an empty replacement conversation; the compact row retains a reason in its tooltip and can be clicked again to retry. Periodic refresh preserves the number of rows already loaded.
+
+History metadata is private local state. Native titles can contain private content. No transcript bodies are copied and no sessions are automatically renamed, archived, deleted or forked. Uninstall preserves the catalog. See `docs/installation.md` for integration opt-in and explicit source mappings.
+
 ## GitHub PR discovery
 
 - For unbound cards, runs `gh pr list --head <branch> --state open --limit 1 --json number,state,url,title,headRefName,headRepository,headRepositoryOwner`

@@ -49,9 +49,7 @@ export async function handleClaudeHook(input, deps) {
     : b.mode === "paired"));
   if (input.hook_event_name === "SessionEnd") {
     if (binding) {
-      const old = await deps.store.read(key);
-      if (old) await deps.store.write({ ...old, ended: true, pendingRename: null, revision: old.revision + 1 }, old.revision);
-      await deps.store.invalidate(bindingKey(binding), binding.generation);
+      await deps.store.releaseSessionBinding(binding);
     }
     return {};
   }
@@ -65,6 +63,7 @@ export async function handleClaudeHook(input, deps) {
     if (previous?.ended) await deps.store.write({ ...previous, ended: false, pendingRename: null, revision: previous.revision + 1 }, previous.revision);
   }
   if (binding.mode === "inherited" && !await bindingIsLive(binding, deps.run)) return {};
+  if (["UserPromptSubmit", "PostToolUse"].includes(input.hook_event_name)) await deps.store.activateSessionBinding(binding);
   const sdk = typeof deps.sdk === "function" ? await deps.sdk() : deps.sdk;
   const access = createClaudeSessionAccess(sdk, binding.lookupDir, input.session_title);
   let current;

@@ -70,3 +70,12 @@ test("owned protocol/client/model copies stay byte identical", async () => {
   for (const [a, b] of bundle.parity) assert.equal(await readFile(join(repoRoot, a), "utf8"), await readFile(join(repoRoot, b), "utf8"), `${a} == ${b}`);
   assert.ok(bundle.parity.length >= 1);
 });
+
+test("global program icons do not require a fake host mod and cannot escape icons", async () => {
+  const bundle = await loadBundle(repoRoot);
+  assert.ok(!(await validateBundle(bundle, repoRoot)).issues.some(i => i.rule === "asset-without-host-mod"));
+  for (const asset of ["icons/../other.svg", "other/file.svg"]) {
+    const result = await validateBundle({ ...bundle, host: { ...bundle.host, assets: [...bundle.host.assets, asset] } }, repoRoot);
+    assert.ok(result.issues.some(i => i.rule === "asset-without-host-mod" && i.asset === asset));
+  }
+});
