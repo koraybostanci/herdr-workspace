@@ -124,6 +124,15 @@ test("session end invalidates only its own generation without querying the SDK",
   assert.equal((await f.store.listBindings()).length, 0);
 });
 
+test("a late SessionEnd cannot close the replacement conversation in the same process", async t => {
+  const f = await fixture(t);
+  await handleClaudeHook(f.input, f.deps);
+  const next = "22222222-2222-4222-8222-222222222222";
+  await handleClaudeHook({ ...f.input, hook_event_name: "SessionStart", session_id: next, source: "resume" }, f.deps);
+  await handleClaudeHook({ ...f.input, hook_event_name: "SessionEnd" }, f.deps);
+  assert.equal((await f.store.listBindings())[0].session.id, next);
+});
+
 test("whole pairing prompts are intercepted even outside HC and never forwarded to a model", async t => {
   const f = await fixture(t);
   const result = await handleClaudeHook({ ...f.input, prompt: "herdr-pair " + "a".repeat(48) }, { ...f.deps, env: {}, pair: async () => { throw new Error("expired"); } });

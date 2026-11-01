@@ -81,6 +81,10 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
     output = { resumed: await runtime.store.write(updated, record.revision) };
   }
   else if (command === "snapshot") output = await producerSnapshot(runtime);
+  else if (command === "presence-snapshot") {
+    const { collectSessionPresence } = await import("../src/session-presence.mjs");
+    output = { schema: 1, owner: OWNER, ...await collectSessionPresence(runtime) };
+  }
   else if (command === "refresh-view") {
     const { refreshView } = await import("../src/collector.mjs");
     const view = await refreshView(runtime, await peers(runtime));

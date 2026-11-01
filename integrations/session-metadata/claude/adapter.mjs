@@ -49,9 +49,7 @@ export async function handleClaudeHook(input, deps) {
     : b.mode === "paired"));
   if (input.hook_event_name === "SessionEnd") {
     if (binding) {
-      const old = await deps.store.read(key);
-      if (old) await deps.store.write({ ...old, ended: true, pendingRename: null, revision: old.revision + 1 }, old.revision);
-      await deps.store.invalidate(bindingKey(binding), binding.generation);
+      await deps.store.releaseSessionBinding(binding);
     }
     return {};
   }

@@ -41,7 +41,7 @@ export default Plugin.define({
           try { proof = JSON.parse(JSON.parse(term.stdout).labels?.["herdr.meta-binding"] ?? "null"); } catch {}
           if (proof?.generation === binding.generation) await runtime.run("local", "hc", ["label", binding.terminal, "herdr.meta-binding="], { env: { HC_SESSION: binding.coreSession } });
         }
-        await runtime.store.invalidate(JSON.stringify([binding.coreHost, binding.coreSession, binding.terminal, binding.createdMs]), binding.generation);
+        await runtime.store.releaseSessionBinding(binding);
       },
     };
     const adapter = createOpenCodeAdapter(context, { ...runtime, scope, identity, engine: applyObservation,

@@ -84,10 +84,26 @@ export function createStore({ root, viewFile, clock = Date.now }) {
     async bind(binding, expectedGeneration) {
       if (!validBinding(binding)) return false;
       const key = bindingKey(binding);
-      return locked(`binding:${key}`, async () => {
+      return store.withMutation(binding.session, () => locked(`binding:${key}`, async () => {
         const old = await store.getBinding(key);
         if ((old?.generation ?? null) !== expectedGeneration) return false;
         await atomicJson(path("bindings", key), binding);
+        return true;
+      }));
+    },
+    async releaseSessionBinding(binding) {
+      if (!validBinding(binding)) return false;
+      return store.withMutation(binding.session, async () => {
+        const key = bindingKey(binding), current = await store.getBinding(key);
+        if (current?.generation !== binding.generation || sessionKey(current.session) !== sessionKey(binding.session)) return false;
+        await store.invalidate(key, binding.generation);
+        const record = await store.read(binding.session);
+        if (record) {
+          const remaining = (await store.listBindings()).filter(b => sessionKey(b.session) === sessionKey(binding.session));
+          await store.write({ ...record, revision: record.revision + 1, ended: remaining.length === 0,
+            bindings: record.bindings.filter(b => b.key !== key || b.generation !== binding.generation),
+            pendingRename: record.pendingRename?.generation === binding.generation ? null : record.pendingRename }, record.revision);
+        }
         return true;
       });
     },

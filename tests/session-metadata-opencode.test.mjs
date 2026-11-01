@@ -111,3 +111,17 @@ test("explicit V2 session location changes enter the metadata pipeline", async t
   await adapter.refresh(); await adapter.dispose();
   assert.ok(seen.some(o => o.kind === "location" && o.payload.cwd === "/work/new-checkout"));
 });
+
+test("reopening an ended OpenCode conversation reactivates it before observations", async t => {
+  const f = await fixture(t);
+  await f.adapter.refresh();
+  const old = (await f.store.listBindings())[0];
+  await f.store.releaseSessionBinding(old);
+  assert.equal((await f.store.read(old.session)).ended, true);
+  const resumed = createOpenCodeAdapter(f.context, { store: f.store, clock: () => 2000,
+    identity: { enabled: true, verify: async session => ({ ...old, session, generation: "resumed" }),
+      commit: b => f.store.bind(b, null), release: b => f.store.releaseSessionBinding(b) },
+    engine: async () => { assert.equal((await f.store.read(old.session)).ended, false); } });
+  t.after(() => resumed.dispose());
+  await resumed.refresh();
+});

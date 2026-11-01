@@ -53,6 +53,10 @@ export function createOpenCodeAdapter(context, deps) {
       next.lookupDir = info.location?.directory ?? null;
       if (!await deps.identity.commit(next) || !stillCurrent(id)) return;
       binding = next;
+      await deps.store.withMutation(session, async () => {
+        const previous = await deps.store.read(session);
+        if (previous?.ended) await deps.store.write({ ...previous, ended: false, pendingRename: null, revision: previous.revision + 1 }, previous.revision);
+      });
       await context.data.session.message.sync(id);
     }
     const current = binding;
