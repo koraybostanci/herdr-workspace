@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { extractPlanWrites } from '../src/plans/evidence.mjs';
+import { extractTaskSnapshot } from '../src/plans/tasks.mjs';
 import { createOpenCodeReviewHandler, startReviewMailbox } from './review-provider.mjs';
 
-function plannedWrites(context,id) {
+function planEvents(context,id) {
   const events=[];
   const messages=context.data.session.message?.list?.(id)??[];
   for(const message of messages.slice(-500)) {
@@ -13,9 +14,7 @@ function plannedWrites(context,id) {
         at:tool.time?.completed??message.time?.completed??message.time?.created??0});
     }
   }
-  const paths=new Map();
-  for(const artifact of events.sort((a,b)=>a.at-b.at).slice(-500).flatMap(event=>extractPlanWrites(event,'opencode')))paths.set(artifact.path,artifact);
-  return [...paths.values()];
+  return events.sort((a,b)=>a.at-b.at).slice(-500);
 }
 export function planMessageFingerprint(id,messages) {
   return JSON.stringify([id,messages.slice(-8).map(message=>[message.id,message.type,
@@ -29,12 +28,22 @@ export function createOpenCodePlanAdapter(context,{rpc,scope}) {
   const current=id=>!disposed&&route()===id;
   async function publishWrites(id) {
     if(!proof||!current(id))return;
-    for(const artifact of plannedWrites(context,id)) {
+    const events=planEvents(context,id),paths=new Map();
+    for(const artifact of events.flatMap(event=>extractPlanWrites(event,'opencode')))paths.set(artifact.path,artifact);
+    for(const artifact of paths.values()) {
       if(!current(id))return;
       const key=JSON.stringify([scope.host,scope.authority,id,artifact.source]);
       if(registeredSources.has(key))continue;
       const result=await rpc({op:'register',payload:{...artifact,session:proof.session,proof}});
       if(result.ok){registeredSources.set(key,true);if(registeredSources.size>1000)registeredSources.delete(registeredSources.keys().next().value);}
+    }
+    const tasks=events.map(extractTaskSnapshot).filter(Boolean).at(-1);
+    if(tasks&&proof&&current(id)) {
+      const key=JSON.stringify([scope.host,scope.authority,id,'tasks',tasks.eventId]);
+      if(!registeredSources.has(key)) {
+        const result=await rpc({op:'update-tasks',payload:{...tasks,session:proof.session,proof}});
+        if(result.ok){registeredSources.set(key,true);if(registeredSources.size>1000)registeredSources.delete(registeredSources.keys().next().value);}
+      }
     }
   }
   async function refreshNow() {

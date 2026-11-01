@@ -4,7 +4,7 @@ import { readFile, writeFile, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { v2Fixture, deferred } from './helpers/v2-fixtures.mjs';
+import { v2Fixture, deferred, proof } from './helpers/v2-fixtures.mjs';
 import { createPlanRuntime } from '../integrations/session-metadata/src/plans/runtime.mjs';
 
 const lifecycleModule=await import('../integrations/session-metadata/src/binding-lifecycle.mjs').catch(e=>{if(e.code!=='ERR_MODULE_NOT_FOUND')throw e;return {};});
@@ -244,4 +244,17 @@ test('fixed helper explicit app/state flags override unrelated GUI environment d
   const env={...process.env,HERDR_METADATA_STATE_DIR:join(f.root,'wrong-state'),HERDR_APP_HOME:join(f.root,'wrong-app')};
   const result=await execute(process.execPath,[helper,'init','--app-home',join(f.root,'right-app'),'--state-root',f.root],{env});
   assert.equal(JSON.parse(result.stdout).value.mailbox,join(f.root,'v2/provider-mailbox'));
+});
+
+test('Claude task-only hooks publish root-owned task snapshots and reject failed tools',async()=>{
+  const calls=[];const {createClaudePlanObserver}=await import('../integrations/session-metadata/claude/plans.mjs');
+  const observer=createClaudePlanObserver({scope:{host:'local',authority:'local'},sdk:{getSessionInfo:async id=>({sessionId:id})},
+    rpc:async request=>{calls.push(request);return {ok:true,value:request.op==='owner-reserve'?{token:'reservation'}:proof};}});
+  const input={session_id:proof.session.id,hook_event_name:'PostToolUse',tool_use_id:'task-hook',tool_name:'TodoWrite',
+    tool_input:{todos:[{id:'a',content:'Build UI',status:'completed'}]},tool_response:{}};
+  await observer.observe(input);
+  const update=calls.find(request=>request.op==='update-tasks');assert.ok(update);
+  assert.deepEqual(update.payload.tasks,[{id:'a',title:'Build UI',status:'completed'}]);assert.equal(update.payload.session.harness,'claude');
+  calls.length=0;await observer.observe({...input,tool_response:{is_error:true}});await observer.observe({...input,agent_id:'child'});
+  assert.equal(calls.length,0);
 });

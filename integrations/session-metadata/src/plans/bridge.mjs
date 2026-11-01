@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { processStamp } from '../database.mjs';
 import { decodeProof, decodeArtifact, sessionKey } from '../protocol.mjs';
 
-const operations=new Set(['init','snapshot','register','unregister','select-document','list','read','save-comment','comments','resolve-conflict','preview-review','submit','dispatch','receipt',
+const operations=new Set(['init','snapshot','register','unregister','select-document','list','read','update-tasks','save-comment','comments','resolve-conflict','preview-review','submit','dispatch','receipt',
   'owner-reserve','owner-commit','owner-heartbeat','owner-release','owner-end','owner-snapshot','owner-review','owner-review-result']);
 const safeId=id=>typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id);
 const failure=reason=>({ok:false,reason});
@@ -82,6 +82,11 @@ function snapshotArtifacts(db,proof) {
       catch{return [];}
     }).sort((a,b)=>Number(b.primary)-Number(a.primary));
 }
+function snapshotTaskRevision(db,proof) {
+  if(!db.sql.prepare("SELECT name FROM sqlite_master WHERE name='plan_task_snapshots'").get())return null;
+  const value=db.sql.prepare('SELECT observed_at FROM plan_task_snapshots WHERE session_key=?').get(sessionKey(proof.session))?.observed_at;
+  return Number.isSafeInteger(value)&&value>=0?value:null;
+}
 
 export async function publishPlanView(runtime) {
   const {db,lifecycle}=runtime,clock=runtime.clock??Date.now;
@@ -109,7 +114,7 @@ export async function publishPlanView(runtime) {
     const current=entries.filter(entry=>{
       const row=sql.prepare('SELECT proof,state FROM channel_bindings WHERE channel=? AND binding_key=?').get('plan',JSON.stringify([entry.proof.coreHost,entry.proof.coreSession,entry.proof.terminal,entry.proof.createdMs]));
       return row?.state==='active' && row.proof===JSON.stringify(entry.proof) && clock()>=entry.proof.verifiedAt && clock()<=entry.proof.leaseUntil;
-    }).map(entry=>({...entry,artifacts:snapshotArtifacts(db,entry.proof)}));
+    }).map(entry=>({...entry,artifacts:snapshotArtifacts(db,entry.proof),taskRevision:snapshotTaskRevision(db,entry.proof)}));
     const view={schema:1,owner:'herdr-session-plans',sequence,publishedAt:clock(),entries:current,errors};
     const temp=path+'.'+randomUUID()+'.tmp';
     try {writeFileSync(temp,JSON.stringify(view),{flag:'wx',mode:0o600});renameSync(temp,path);}

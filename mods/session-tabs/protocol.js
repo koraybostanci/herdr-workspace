@@ -3,7 +3,12 @@ export const OWNER = 'herdr-session-metadata';
 const object = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const text = x => typeof x === 'string' && x.length > 0 && !/[\x00-\x1f\x7f]/.test(x);
 const integer = x => Number.isSafeInteger(x) && x >= 0;
-const fields = (x, names) => object(x) && Object.keys(x).every(k => names.includes(k)) && names.every(k => Object.hasOwn(x,k));
+const fields = (x, names) => {
+  if (!object(x)) return false;
+  for (const key of Object.keys(x)) if (!names.includes(key)) return false;
+  for (const key of names) if (!Object.hasOwn(x,key)) return false;
+  return true;
+};
 const path = x => text(x) && /^(?:\/|[A-Za-z]:[\\/])/.test(x);
 const hash = x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
 const result = (valid,value,reason) => valid ? {ok:true,value} : {ok:false,reason};

@@ -1,4 +1,5 @@
 import { extractPlanWrites } from '../src/plans/evidence.mjs';
+import { extractTaskSnapshot } from '../src/plans/tasks.mjs';
 
 export function createClaudePlanObserver({rpc,sdk,scope}) {
   return {
@@ -7,9 +8,11 @@ export function createClaudePlanObserver({rpc,sdk,scope}) {
       const session={...scope,harness:'claude',id:input.session_id};
       if(input.hook_event_name==='SessionEnd'){await rpc({op:'owner-end',payload:{session}});return;}
       const response=input.tool_response??{};
-      const writes=input.hook_event_name==='PostToolUse'?extractPlanWrites({eventId:input.tool_use_id,tool:input.tool_name,input:input.tool_input,
-        failed:Boolean(response.is_error||response.interrupted||response.exit_code&&response.exit_code!==0)},'claude'):[];
-      if(!['SessionStart','UserPromptSubmit'].includes(input.hook_event_name)&&!writes.length)return;
+      const event={eventId:input.tool_use_id,tool:input.tool_name,input:input.tool_input,at:Date.now(),
+        failed:Boolean(response.is_error||response.interrupted||response.exit_code&&response.exit_code!==0)};
+      const writes=input.hook_event_name==='PostToolUse'?extractPlanWrites(event,'claude'):[];
+      const tasks=input.hook_event_name==='PostToolUse'?extractTaskSnapshot(event):null;
+      if(!['SessionStart','UserPromptSubmit'].includes(input.hook_event_name)&&!writes.length&&!tasks)return;
       // Reserve before the SDK await: late startup completion cannot reclaim a newer generation.
       const reservation=await rpc({op:'owner-reserve',payload:{session,expectedGeneration:null}});
       if(!reservation.ok||!reservation.value)return;
@@ -18,6 +21,7 @@ export function createClaudePlanObserver({rpc,sdk,scope}) {
       if(info?.sessionId!==session.id)return;
       const committed=await rpc({op:'owner-commit',payload:{reservation:reservation.value,session}});
       if(committed.ok&&committed.value)for(const artifact of writes)await rpc({op:'register',payload:{...artifact,session,proof:committed.value}});
+      if(committed.ok&&committed.value&&tasks)await rpc({op:'update-tasks',payload:{...tasks,session,proof:committed.value}});
     },
   };
 }

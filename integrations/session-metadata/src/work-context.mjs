@@ -1,13 +1,11 @@
 import { isAbsolute } from "node:path";
 import { sessionKey } from "./contracts.mjs";
 import { ticketReference } from "./naming.mjs";
+import { githubRepo, resolveGithubRepo } from "./github.mjs";
+export { githubRepo } from "./github.mjs";
 
 const caches = new WeakMap();
 export const repoKey = repo => `${repo.host}/${repo.owner.toLowerCase()}/${repo.name.toLowerCase()}`;
-export function githubRepo(value) {
-  const m = value?.trim().match(/^(?:git@github\.com:|https:\/\/github\.com\/)([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
-  return m ? { host: "github.com", owner: m[1], name: m[2] } : null;
-}
 export function githubPr(value, now = Date.now()) {
   const m = value?.url?.match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/([1-9]\d*)\/?$/);
   if (!m || Number(m[3]) !== value.number || !Number.isSafeInteger(value.number) || !["OPEN", "CLOSED", "MERGED"].includes(value.state)) throw new Error("Invalid GitHub PR metadata");
@@ -45,7 +43,7 @@ export async function resolveWorkContext(observation, previous, run) {
     };
     root = await git(["rev-parse", "--show-toplevel"]);
     if (root) {
-      repo = githubRepo(await git(["config", "--get", "remote.origin.url"]));
+      repo = await resolveGithubRepo(await git(["config", "--get", "remote.origin.url"]),(command,args,options)=>run(host,command,args,options),{cwd});
       branch = await git(["branch", "--show-current"]);
       const checkout = await run(host, "git", ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], { cwd });
       const paths = checkout.code === 0 ? checkout.stdout.replace(/\r?\n$/, "").split(/\r?\n/) : [];

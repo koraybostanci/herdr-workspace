@@ -10,6 +10,7 @@ import { saveComment, listComments, listCommentConflicts, resolveCommentConflict
 import { dispatchReview, reconcileReview, previewReview } from './delivery.mjs';
 import { ensureProviderMailbox, createMailboxProvider, authorizeProviderRequest, recordProviderResult } from './provider-mailbox.mjs';
 import { readDeliveryCapability } from './capabilities.mjs';
+import { recordTaskSnapshot, readPlanTasks } from './tasks.mjs';
 
 export function createPlanRuntime(env=process.env,overrides={}) {
   const root=overrides.db?dirname(overrides.db.root):env.HERDR_METADATA_STATE_DIR??join(env.XDG_STATE_HOME??join(env.HOME,'.local/state'),'herdr-agent-metadata');
@@ -62,7 +63,13 @@ export function createPlanRuntime(env=process.env,overrides={}) {
       const selected=await setPrimaryArtifact(payload,{...runtime,proof:payload.proof});await publishPlanView(runtime);return selected;
     },
     list:payload=>listArtifacts(payload.session,{...runtime,proof:payload.proof}),
-    read:payload=>readArtifact(payload,{...runtime,proof:payload.proof}),
+    read:async payload=>{
+      const document=await readArtifact(payload,{...runtime,proof:payload.proof});
+      const scope={...payload,artifactId:document.artifact.id};
+      return {...document,...(document.state==='ready'?{tasks:readPlanTasks(document.artifact,document.text,document.sections,runtime)}:{}),
+        ...(payload.review===true?{review:{comments:listComments(scope,db),conflicts:listCommentConflicts(scope,db),submissions:listSubmissions(scope,db)}}:{})};
+    },
+    'update-tasks':async payload=>{const result=await recordTaskSnapshot(payload,runtime);if(result.updated)await publishPlanView(runtime);return result;},
     // Draft persistence is scoped to a previously registered artifact, not the current process lifetime.
     'save-comment':payload=>saveComment(payload,db),
     comments:payload=>({comments:listComments(payload,db),conflicts:listCommentConflicts(payload,db),submissions:listSubmissions(payload,db)}),

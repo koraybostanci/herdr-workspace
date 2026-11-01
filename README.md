@@ -18,7 +18,7 @@
 | **Spaces** (`compact-spaces`) | A 44-pixel dropdown that lists spaces grouped by machine. The popup opens downward. Keyboard highlight stays put, right-click opens actions, and you can reorder spaces on the same machine. |
 | **Agents** (`space-agents`) | Compact cards for the sessions in the selected space. A card shows the title, branch and pull request. Successful project work counts toward the card. Diagnostic Git reads and generated reports do not. |
 | **Session tabs** (`session-tabs`) | The tab strip, with the Files, Changes and Plan buttons. |
-| **Plan** (`plan`) | Shows one primary document for the exact selected session. You can comment on sections, keep private drafts, and copy a review back to the agent. A Source/Formatted toggle switches the view. |
+| **Plan** (`plan`) | A Plan/Tasks workspace for the exact selected session. Open the Markdown beside the agent, comment on sections, and collect one review message. Tasks follow the plan's phases when present. |
 | **Helper** | A small Node program that collects session metadata and stores drafts and reviews in a private SQLite database. OpenCode and Claude adapters feed it. |
 
 Everything ships as one bundle with one installer. The installer checks your Herdr app first, writes nothing until you ask, and can undo what it did.
@@ -82,6 +82,12 @@ See [docs/installation.md](docs/installation.md) for the full list of what chang
 ## Privacy
 
 Drafts, comments and reviews stay on your machine in the state folder. Naming only *observes* sessions. Sending a review only *copies* it for you to paste. The bundle contains no credentials, session data or logs, and `npm run check:privacy` enforces that on every tracked file.
+
+## Reviewing a plan
+
+Open **Plan** beside Files and Changes. Use **Comment** beside a heading or **Review → General comment** to collect feedback. Comments autosave privately. The Review drawer keeps them out of the reading area until needed; **Copy review** combines them into one message. Verified delivery, when available, previews the recipient and comments before one explicit **Send review** confirmation. Feedback does not approve implementation.
+
+**Open Markdown** opens the registered `.md` file in a read-only source pane beside the agent, in the same session tab. **Tasks** groups task headings and checklists under their phases; phase-free plans stay flat. Explicitly linked agent updates can supply status. Ambiguous, unlinked, or older-revision observations stay separate. See [the Plan guide](mods/plan/README.md) for task syntax and integration details.
 
 ## Known limits
 

@@ -54,6 +54,20 @@ test('arbitrary_json_validation_never_throws including nested malformed plan rec
   assert.equal(protocol.decodeProof({...proof, arbitraryRawPayload:'private'}).ok, false);
 });
 
+test('repeated identity validation does not allocate fresh per-field iteration callbacks',()=>{
+  const original=Array.prototype.every,callbacks=new Set(),results=[];
+  Array.prototype.every=function(callback,thisArg){callbacks.add(callback);return original.call(this,callback,thisArg);};
+  try {
+    for(let index=0;index<40;index++){
+      results.push(protocol.decodeProof(proof).ok,protocol.decodeArtifact(artifact).ok);
+    }
+  } finally {Array.prototype.every=original;}
+  assert.equal(results.filter(Boolean).length,80);
+  assert.ok(callbacks.size<=2,`Repeated validation created ${callbacks.size} callback identities`);
+  assert.equal(protocol.decodeProof({...proof,unexpected:true}).ok,false);
+  assert.equal(protocol.decodeArtifact({...artifact,session:{...session,id:'invalid\n'}}).ok,false);
+});
+
 test('valid multiline comments and anchors remain data with bounded original UTF-8 excerpts', () => {
   assert.equal(typeof protocol.decodeComment, 'function');
   assert.equal(protocol.decodeArtifact(artifact).ok, true);
