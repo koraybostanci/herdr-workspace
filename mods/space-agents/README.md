@@ -84,7 +84,9 @@ Session History sits below Agents in the same scrollable sidebar. Each section f
 
 The History view is remembered independently of the Agents view. Search matches titles and paths inside the selected Space. Load more reveals another bounded page. Incomplete discovery shows a warning and a known-count indicator rather than claiming the list is complete.
 
-History rows are a dense 28px single-line list: harness icon, title and compact age. Folder/machine details and errors are in the tooltip. There are no Resume buttons, action links or second metadata lines.
+History rows are a dense 28px single-line list: harness icon, title, compact age and a small trash control in the expanded sidebar. Folder/machine details and errors are in the tooltip. There are no Resume buttons or second metadata lines.
+
+The trash control asks for confirmation before permanently deleting the saved conversation from its original harness, server and machine. Cancel has initial keyboard focus. OpenCode also deletes child sessions; Claude deletes the session's subagent transcripts. Close any Herdr bindings first, including sessions opened only for viewing. An unavailable connection or failed deletion keeps the row with an error in its tooltip. Only confirmed native deletion removes the local catalog entry, metadata and Space association; it does not return after refresh. Deletion does not remove project files or undo code changes.
 
 The section boundary distinguishes browsing from activated work:
 

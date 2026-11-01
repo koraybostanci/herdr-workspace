@@ -135,6 +135,8 @@ Verified Space associations take priority. External conversations without one ma
 
 History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#session-history) for states and limits.
 
+In the expanded sidebar, each history row also has a trash control. Confirming it permanently deletes the conversation from its original OpenCode or Claude source, including child sessions or subagent transcripts. Close the session in Herdr first. Failed deletion keeps the row; confirmed deletion removes its local metadata and does not change project files.
+
 ## Plan feature removed
 
 The Plan/Tasks panel, review system and Plan observers are no longer included. Existing plan Markdown files and saved review data are left untouched. To upgrade an installation that configured the harnesses, run `install --configure-harnesses opencode,claude`. OpenCode reloads its plugin configuration live; use `/reload` if an old plugin remains loaded. See [upgrade instructions](docs/installation.md#upgrade-and-removal).

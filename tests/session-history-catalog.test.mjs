@@ -81,7 +81,7 @@ test("partial inventories and failed exact lookups retain cached saved sessions"
   runtime.sdk.listSessions = async () => [];
   assert.equal((await refreshSessionCatalog(runtime, { force: true })).sessions.length, 1);
   runtime.sdk.getSessionInfo = async () => undefined;
-  assert.equal((await refreshSessionCatalog(runtime, { force: true })).sessions.length, 0);
+  assert.equal((await refreshSessionCatalog(runtime, { force: true })).sessions.length, 1, "missing summary metadata does not prove the transcript is absent");
 });
 
 test("repeated OpenCode cursors stop discovery without claiming completeness", async t => {

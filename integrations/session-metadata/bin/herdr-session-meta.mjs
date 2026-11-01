@@ -109,6 +109,10 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
     const { prepareSessionResume } = await import("../src/history-view.mjs");
     output = await prepareSessionResume(runtime, JSON.parse(argument(argv, "request")));
   }
+  else if (command === "delete-session") {
+    const { deleteSavedSession } = await import("../src/history-view.mjs");
+    output = await deleteSavedSession(runtime, JSON.parse(argument(argv, "request")));
+  }
   else if (command === "refresh-view") {
     const { refreshView } = await import("../src/collector.mjs");
     const view = await refreshView(runtime, await peers(runtime));

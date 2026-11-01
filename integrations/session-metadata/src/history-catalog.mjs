@@ -76,7 +76,7 @@ export async function lookupNativeSession(runtime, source, id, directory = null)
     if (source.harness === "claude") {
       const sdk = runtime.sdk ?? await import("@anthropic-ai/claude-agent-sdk");
       const info = await sdk.getSessionInfo(id, directory ? { dir: directory } : {});
-      return info?.sessionId === id ? { state: "available", info } : info === undefined ? { state: "missing" } : { state: "unknown" };
+      return info?.sessionId === id ? { state: "available", info } : info === undefined ? { state: "unknown", reason: "metadata-missing" } : { state: "unknown" };
     }
     const result = await openCodeRequest(runtime.run, source, `/api/session/${encodeURIComponent(id)}`);
     const info = result.value?.data ?? result.value;
@@ -107,6 +107,9 @@ export async function refreshSessionCatalog(runtime, { force = false } = {}) {
       let page;
       try { page = await inventory(runtime, source); } catch { page = failure(source); }
       page.source.checkedAt = now;
+      for (const discovered of page.entries) if (discovered.saved === "available" && await runtime.store.historyDeleted(discovered.session)) {
+        await runtime.store.clearHistoryDeletion(discovered.session);
+      }
       if (page.complete) for (const old of previous?.sessions ?? []) {
         if (old.sourceId !== source.id || page.entries.some(e => sessionIdentityKey(e.session) === sessionIdentityKey(old.session))) continue;
         const found = await lookupNativeSession(runtime, source, old.session.id, old.directory);

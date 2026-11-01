@@ -89,11 +89,39 @@ export function createStore({ root, viewFile, clock = Date.now }) {
         if (value?.owner === OWNER && value.schema === 1) await atomicJson(location, { ...value, missing: true });
       });
     },
+    async forgetHistorySession(session) {
+      return store.withMutation(session, async () => {
+        await atomicJson(path("history-associations", sessionKey(session)), { schema: 1, owner: OWNER, session, missing: true, deleted: true });
+        for (const kind of ["history-opening", "sessions"]) {
+          await fs.unlink(path(kind, sessionKey(session))).catch(e => { if (e.code !== "ENOENT") throw e; });
+        }
+      });
+    },
+    async historyDeleted(session) {
+      await ensure();
+      const value = await readJson(path("history-associations", sessionKey(session)));
+      return value?.owner === OWNER && value.schema === 1 && value.deleted === true && value.missing === true && sessionKey(value.session) === sessionKey(session);
+    },
+    async clearHistoryDeletion(session) {
+      return store.withMutation(session, async () => {
+        if (await store.historyDeleted(session)) await fs.unlink(path("history-associations", sessionKey(session)));
+      });
+    },
     async beginHistoryBrowse(session, space, baseline = 0) {
       const key = sessionKey(session);
       if (!space || ![space.host, space.coreSession, space.id].every(v => typeof v === "string" && v && !/[\x00-\x1f\x7f]/.test(v))) throw Error("Invalid browsing Space");
       return store.withMutation(session, () => atomicJson(path("history-opening", key), { schema: 1, owner: OWNER, session,
-        space: { host: space.host, coreSession: space.coreSession, id: space.id }, baseline: Number.isSafeInteger(baseline) && baseline >= 0 ? baseline : 0 }));
+        space: { host: space.host, coreSession: space.coreSession, id: space.id }, baseline: Number.isSafeInteger(baseline) && baseline >= 0 ? baseline : 0, expiresAt: clock() + 60000 }));
+    },
+    async historyOpening(session, now = clock()) {
+      await ensure();
+      const location = path("history-opening", sessionKey(session));
+      let value;
+      try { value = JSON.parse(await fs.readFile(location, "utf8")); }
+      catch (e) { if (e.code === "ENOENT") return false; throw e; }
+      if (value?.owner !== OWNER || value.schema !== 1 || sessionKey(value.session) !== sessionKey(session)) throw Error("Invalid history opening claim");
+      const expiresAt = Number.isSafeInteger(value.expiresAt) ? value.expiresAt : (await fs.stat(location)).mtimeMs + 60000;
+      return now < expiresAt;
     },
     async activateSessionBinding(binding, { observedAt } = {}) {
       if (!validBinding(binding)) return false;
