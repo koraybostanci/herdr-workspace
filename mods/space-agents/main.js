@@ -6,6 +6,7 @@ import { readSessionView, projectSessionCard, readLiveSessionBindings } from "./
 import { HistoryController } from "./history-controller.js";
 import { renderSessionHistory } from "./history-ui.js";
 import { historyProgram, historyViewMode } from "./history-model.js";
+import { AgentPresence } from "./agent-presence.js";
 
 const STATUS = { working: "Working", blocked: "Needs you", done: "Done", idle: "Idle" };
 
@@ -33,6 +34,7 @@ export default class SpaceAgents extends View {
   init(_props, cx) {
     this.prs = new PullRequests();
     this.workingDirs = new WorkingDirectories();
+    this.agentPresence = new AgentPresence();
     this.handle = cx.focus_handle();
     this.menuHandle = cx.focus_handle();
     this.viewMenuOpen = false;
@@ -197,15 +199,22 @@ export default class SpaceAgents extends View {
     const mode = agentViewMode(shared("space-agents.view"));
     const grouped = mode === "repository";
     const allAgents = agents();
-    const observed = agentCards({ allAgents, allSpaces, allPanes, allTerminals: liveTerminals, selectedSpace, knownAgentKeys: this.knownAgentKeys });
+    const candidates = agentCards({ allAgents, allSpaces, allPanes, allTerminals: liveTerminals, selectedSpace, knownAgentKeys: this.knownAgentKeys });
+    const terminalByAddress = new Map(liveTerminals.map(t => [t.address, t]));
+    const bound = readLiveSessionBindings(this.sessionView, liveTerminals), presence = [];
+    const paired = new Set([...bound].filter(([, entry]) => entry.binding.mode === "paired").map(([address]) => address)
+      .concat(this.history.registry.sessions.flatMap(row => row.bindings.filter(b => b.mode === "paired").map(b => b.address))));
+    const closed = new Set(candidates.filter(card => !paired.has(card.address)
+      && this.agentPresence.peek(card, terminalByAddress.get(card.address)) === "closed").map(card => card.address));
+    const observed = candidates.filter(card => !closed.has(card.address));
     const projected = observed.map(card => records.has(card.address) ? projectSessionCard(card, records.get(card.address)) : { ...card, ...this.workingDirs.peek(card) })
       .map(card => ({ ...card, projectRepo: card.projectRepo ?? cardPullRequest(card, this.prs.peek(card))?.repo ?? null }));
-    const bound = readLiveSessionBindings(this.sessionView, liveTerminals), presence = [];
     const mapped = this.history.registry.sources.find(s => s.machine === space?.machine && s.machine != null);
     const remembered = this.history.space?.id === space?.id ? this.history.space : this.history.contexts.get(JSON.stringify([space?.id, space?.machine ?? null]));
     const coreSession = [...bound.values()].find(e => observed.some(c => c.address === (e.binding.viewTerminal ?? e.binding.terminal)))?.binding.coreSession ?? remembered?.coreSession ?? "default";
     this.history.setSpace(space ? { id: space.id, machine: space.machine ?? null, host: mapped?.host ?? space.machine ?? "local", coreSession, folder: space.folder } : null);
     for (const [address, entry] of bound) {
+      if (closed.has(address)) { presence.push({ state: "closed", binding: entry.binding }); continue; }
       const pane = allPanes.find(p => p.terminal === address), agent = allAgents.find(a => a.address === address);
       const owner = allSpaces.find(s => s.id === agent?.space || s.tabs.some(tab => tab.id === pane?.tab));
       const program = agent?.program ?? pane?.program, expected = entry.binding.session.harness === "claude" ? "claude" : "opencode";
@@ -214,6 +223,9 @@ export default class SpaceAgents extends View {
         space: { host: owner.machine ? entry.binding.session.host : "local", coreSession: entry.binding.coreSession, id: owner.id },
         tab: agent?.tab ?? pane?.tab, pane: pane?.pane ?? agent?.pane ?? null, focused: agent?.focused ?? pane?.focused ?? false,
         activity: agent?.status ?? pane?.status ?? null, directory: entry.binding.lookupDir } });
+    }
+    for (const row of this.history.registry.sessions) for (const binding of row.bindings) {
+      if (closed.has(binding.address) && binding.createdMs === terminalByAddress.get(binding.address)?.created_ms) presence.push({ state: "closed", binding });
     }
     const partition = this.history.partition(presence);
     const covered = new Set([...partition.agents, ...partition.history].flatMap(row => row.bindings.map(b => b.address)).concat(presence.map(o => o.binding.address)));
@@ -240,6 +252,11 @@ export default class SpaceAgents extends View {
     const visibleCards = grouped ? groups.filter(group => !groupCollapsed(group)).flatMap(group => group.cards) : cards;
     if (!visibleCards.some(c => c.address === this.keyboardAddress)) this.keyboardAddress = (visibleCards.find(c => c.focused) ?? visibleCards[0])?.address ?? null;
     setAgentOrder(visibleCards.filter(c => c.connection !== "unavailable").map(c => c.address));
+    for (const card of candidates) {
+      const terminal = terminalByAddress.get(card.address);
+      if (paired.has(card.address) || !this.agentPresence.needs(card, terminal)) continue;
+      cx.spawn(async cx => { await this.agentPresence.refresh(card, terminal, exec); cx.notify(); });
+    }
     for (const card of observed) {
       if (records.has(card.address) || !this.workingDirs.needs(card)) continue;
       cx.spawn(async cx => { await this.workingDirs.refresh(card, exec); cx.notify(); });

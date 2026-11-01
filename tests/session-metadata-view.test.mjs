@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readSessionView, projectSessionCard } from "../mods/space-agents/session-metadata.js";
+import { readSessionView, projectSessionCard, readLiveSessionBindings } from "../mods/space-agents/session-metadata.js";
 import { bindingKey } from "../integrations/session-metadata/src/contracts.mjs";
 import { metadataFixture } from "./helpers/session-metadata-fixtures.mjs";
 import { isolatedFixture } from "./helpers/session-metadata-fixtures.mjs";
@@ -30,6 +30,11 @@ test("only matching live labels, creation identity and generation can supply met
   assert.equal(readSessionView({ ...f.view, owner: "foreign" }, [f.terminal]).size, 0);
   assert.equal(readSessionView({ ...f.view, entries: [{ binding: {}, record: null }] }, [f.terminal]).size, 0);
   assert.equal(readSessionView({ ...f.view, entries: [null, 42, {}] }, [f.terminal]).size, 0);
+});
+test("a shell wrapper sharing its foreground process group with an agent keeps its live binding", () => {
+  const f = fixture();
+  Object.assign(f.terminal, { pid: 10, foreground: { pid: 10, name: "bash", argv: ["/bin/bash", "-c", "opencode; cleanup"] } });
+  assert.equal(readLiveSessionBindings(f.view, [f.terminal]).size, 1);
 });
 test("closed PRs do not reappear as active badges from historical canonical titles", () => {
   const f = fixture(), url = f.context.activePrUrl;
