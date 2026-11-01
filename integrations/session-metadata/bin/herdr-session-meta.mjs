@@ -101,6 +101,15 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
     const found = await lookupNativeSession(runtime, source, session.id);
     output = { owner: OWNER, schema: 1, state: found.state };
   }
+  else if (command === "history-view") {
+    const { refreshSessionCatalog } = await import("../src/history-catalog.mjs");
+    const { createHistoryView } = await import("../src/history-view.mjs");
+    output = createHistoryView(await refreshSessionCatalog(runtime), JSON.parse(argument(argv, "request")));
+  }
+  else if (command === "prepare-resume") {
+    const { prepareSessionResume } = await import("../src/history-view.mjs");
+    output = await prepareSessionResume(runtime, JSON.parse(argument(argv, "request")));
+  }
   else if (command === "refresh-view") {
     const { refreshView } = await import("../src/collector.mjs");
     const view = await refreshView(runtime, await peers(runtime));

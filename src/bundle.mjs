@@ -107,7 +107,7 @@ export async function validateBundle(bundle, root) {
     }
     for (const name of overlayModsOf(text)) if (!ownedMods.has(name) && !hostMods.has(name)) add("undeclared-overlay-mod", { from: path, name });
   }
-  for (const asset of hostAssets) if (!hostMods.has(asset.split("/")[1])) add("asset-without-host-mod", { asset });
+  for (const asset of hostAssets) if (!/^icons\/[A-Za-z0-9_.-]+\.svg$/.test(asset) && !hostMods.has(asset.split("/")[1])) add("asset-without-host-mod", { asset });
   for (const pattern of patterns) if (![...hostAssets].some(a => pattern.test(a))) add("empty-asset-pattern", { pattern: String(pattern) });
 
   for (const mod of bundle.mods ?? []) {
