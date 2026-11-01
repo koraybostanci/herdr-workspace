@@ -80,6 +80,14 @@ test("an explicit unconfigured remote server cannot masquerade as a local execut
   }), { host: "devbox", authority: "devbox-service" });
 });
 
+test("resumed extra authorities resolve through owned history sources without changing CLI options", () => {
+  const options = { appHome: "/fixture/app", stateRoot: "/fixture/metadata" };
+  const sources = [{ harness: "opencode-v2", server: "http://127.0.0.1:4096", host: "local", authority: "other-service" }];
+  assert.deepEqual(executionScope(["opencode", "--server", "http://127.0.0.1:4096", "--session", "ses_existing"], options, sources), { host: "local", authority: "other-service" });
+  assert.equal(options.servers, undefined);
+  assert.equal(executionScope(["opencode", "--server", "https://unconfigured.example"], options, sources), null);
+});
+
 test("pairing acknowledges the exact currently displayed root without requiring inherited HC identity", async t => {
   const f = await fixture(t, { enabled: false });
   let paired;
@@ -124,4 +132,20 @@ test("reopening an ended OpenCode conversation reactivates it before observation
     engine: async () => { assert.equal((await f.store.read(old.session)).ended, false); } });
   t.after(() => resumed.dispose());
   await resumed.refresh();
+});
+
+test("OpenCode browsing ignores historical messages and old work events but activates on new input", async t => {
+  const f = await fixture(t), session = { host: "local", authority: "local", harness: "opencode-v2", id: "ses_A" };
+  f.binding.space = { host: "local", coreSession: "default", id: "space" };
+  await f.store.beginHistoryBrowse(session, f.binding.space, 100);
+  await f.adapter.refresh(); await f.adapter.refresh();
+  assert.equal((await f.store.listBindings())[0].browsing, true);
+  const event = (created, type = "session.execution.started") => ({ id: `evt_${created}`, created, type,
+    durable: { aggregateID: "ses_A", seq: created, version: 1 }, data: { sessionID: "ses_A" } });
+  await f.adapter.observeWork(event(50));
+  await f.adapter.observeWork(event(200, "session.viewed"));
+  assert.equal((await f.store.listBindings())[0].browsing, true);
+  await f.adapter.observeWork({ ...event(200, "session.inbox.enqueued"), data: { sessionID: "ses_A", inboxID: "msg_new",
+    item: { type: "user", payload: { text: "Continue" }, delivery: "queue" } } });
+  assert.equal((await f.store.listBindings())[0].browsing, false);
 });

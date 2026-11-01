@@ -133,6 +133,26 @@ test("a late SessionEnd cannot close the replacement conversation in the same pr
   assert.equal((await f.store.listBindings())[0].session.id, next);
 });
 
+test("Claude browsing stays in History through startup and Stop until a new user prompt", async t => {
+  const f = await fixture(t);
+  const session = { host: "local", authority: "claude", harness: "claude", id };
+  await f.store.beginHistoryBrowse(session, { host: "local", coreSession: "default", id: "space" });
+  await handleClaudeHook({ ...f.input, hook_event_name: "SessionStart", source: "resume" }, f.deps);
+  assert.equal((await f.store.listBindings())[0].browsing, true);
+  await handleClaudeHook({ ...f.input, hook_event_name: "Stop" }, f.deps);
+  assert.equal((await f.store.listBindings())[0].browsing, true);
+  await handleClaudeHook(f.input, f.deps);
+  assert.equal((await f.store.listBindings())[0].browsing, false);
+});
+
+test("genuine Claude tool work also activates a browsed session without replaying old prompts", async t => {
+  const f = await fixture(t), session = { host: "local", authority: "claude", harness: "claude", id };
+  await f.store.beginHistoryBrowse(session, { host: "local", coreSession: "default", id: "space" });
+  await handleClaudeHook({ ...f.input, hook_event_name: "SessionStart", source: "resume" }, f.deps);
+  await handleClaudeHook({ ...f.input, hook_event_name: "PostToolUse", tool_name: "Read", tool_use_id: "new_work", tool_input: { file_path: "/parent/file" }, tool_response: "Synthetic file contents" }, f.deps);
+  assert.equal((await f.store.listBindings())[0].browsing, false);
+});
+
 test("whole pairing prompts are intercepted even outside HC and never forwarded to a model", async t => {
   const f = await fixture(t);
   const result = await handleClaudeHook({ ...f.input, prompt: "herdr-pair " + "a".repeat(48) }, { ...f.deps, env: {}, pair: async () => { throw new Error("expired"); } });

@@ -202,7 +202,8 @@ export default class SpaceAgents extends View {
       .map(card => ({ ...card, projectRepo: card.projectRepo ?? cardPullRequest(card, this.prs.peek(card))?.repo ?? null }));
     const bound = readLiveSessionBindings(this.sessionView, liveTerminals), presence = [];
     const mapped = this.history.registry.sources.find(s => s.machine === space?.machine && s.machine != null);
-    const coreSession = [...bound.values()].find(e => observed.some(c => c.address === (e.binding.viewTerminal ?? e.binding.terminal)))?.binding.coreSession ?? "default";
+    const remembered = this.history.space?.id === space?.id ? this.history.space : this.history.contexts.get(JSON.stringify([space?.id, space?.machine ?? null]));
+    const coreSession = [...bound.values()].find(e => observed.some(c => c.address === (e.binding.viewTerminal ?? e.binding.terminal)))?.binding.coreSession ?? remembered?.coreSession ?? "default";
     this.history.setSpace(space ? { id: space.id, machine: space.machine ?? null, host: mapped?.host ?? space.machine ?? "local", coreSession, folder: space.folder } : null);
     for (const [address, entry] of bound) {
       const pane = allPanes.find(p => p.terminal === address), agent = allAgents.find(a => a.address === address);
@@ -215,7 +216,7 @@ export default class SpaceAgents extends View {
         activity: agent?.status ?? pane?.status ?? null, directory: entry.binding.lookupDir } });
     }
     const partition = this.history.partition(presence);
-    const covered = new Set(partition.agents.flatMap(row => row.bindings.map(b => b.address)));
+    const covered = new Set([...partition.agents, ...partition.history].flatMap(row => row.bindings.map(b => b.address)).concat(presence.map(o => o.binding.address)));
     const resolved = partition.agents.map(row => {
       const card = projected.find(c => c.address === row.primaryBinding.address);
       return { ...card, address: row.primaryBinding.address, pane: card?.pane ?? row.primaryBinding.pane, title: card?.title ?? row.title,

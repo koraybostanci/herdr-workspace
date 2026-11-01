@@ -94,3 +94,18 @@ test("configured remote preparation stays on its machine and rejects arbitrary r
   runtime.peers = [];
   assert.equal((await prepareSessionResume(runtime, { session, space })).error, "execution-host-unavailable");
 });
+
+test("opening from History claims a browsing binding and repeated open focuses it", async t => {
+  const f = await fixture(t), run = f.runtime.run;
+  f.runtime.run = (host, command, args) => args[0] === "api" ? { code: 0, stdout: JSON.stringify({ data: { id: f.session.id, time: { created: 1, updated: 100, busy: 150, idle: 180 }, location: { directory: f.root } } }) } : run(host, command, args);
+  const opened = await prepareSessionResume(f.runtime, { session: f.session, space: f.space, browsing: true });
+  assert.equal(opened.kind, "launch");
+  const binding = { ...f.binding, session: f.session, space: f.space, address: "t-fixture", pane: "p1", tab: "tab1", presence: "open", connection: "confirmed", activity: "idle" };
+  await f.store.bind(binding, null);
+  assert.equal((await f.store.listBindings())[0].browsing, true);
+  assert.equal((await f.store.listBindings())[0].browseBaseline, 180);
+  f.runtime.run = (host, command, args) => command === "hc" ? { code: 0, stdout: JSON.stringify({ state: "live", created_ms: 100, pid: 10,
+    foreground: { pid: 20 }, status: "idle", labels: { "herdr.space": "one", "herdr.tab": "tab1", "herdr.meta-binding": JSON.stringify({ key: bindingKey(binding), generation: binding.generation }) } }) }
+    : command === "ps" ? { code: 0, stdout: args.includes("lstart=") ? "Thu Oct 01 12:00:00 2026" : "20" } : run(host, command, args);
+  assert.equal((await prepareSessionResume(f.runtime, { session: f.session, space: f.space, browsing: true })).kind, "focus");
+});

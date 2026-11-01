@@ -86,11 +86,11 @@ Session History reads native Claude Code and OpenCode V2 metadata, including sav
 
 ## Session placement
 
-The selected Space filters both sections before view selection, search or counts. A resolved conversation appears once: in **Agents** while open in Herdr, otherwise in **Session History**. Working, blocked, done and idle are activity badges; done/idle do not mean closed. Disconnects retain the last confirmed placement with a warning.
+The selected Space filters both sections before view selection, search or counts. A resolved conversation appears once. Clicking a History row opens it for browsing without moving it to Agents. A new message or actual work activates it; it then stays in **Agents** even when idle or done, until closed. Working, blocked, done and idle remain activity badges, not placement rules. Disconnects retain the last confirmed placement.
 
-Verified Space associations take priority. External conversations without one match the exact directory and machine; Spaces sharing a directory can discover the same history. Subdirectories and worktrees are not silently combined. External activity can be unknown: History means not open **in Herdr**, not necessarily stopped everywhere.
+Verified Space associations take priority. External conversations without one match the exact directory and machine; Spaces sharing a directory can discover the same history. Subdirectories and worktrees are not silently combined. History also holds sessions opened only for viewing; it does not claim that a conversation is stopped everywhere, and external activity can be unknown.
 
-Resume checks the exact saved ID, original folder, harness and execution context. It focuses an existing binding or opens a new tab in the selected Space. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#session-history) for states and limits.
+History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#session-history) for states and limits.
 
 ## Plan feature removed
 

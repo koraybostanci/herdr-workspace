@@ -58,3 +58,12 @@ test("remote machine aliases resolve through configured source provenance, not g
   assert.equal(page.history.length, 1);
   assert.equal(page.resolvedSpace.host, "remote-host");
 });
+
+test("an authoritative local core namespace resolves cold-start history without changing the request token", () => {
+  const named = { ...space, coreSession: "work" };
+  const original = request();
+  const page = createHistoryView(registry([entry("ses_named", { associations: [{ ...named, associatedAt: 1000 }] })]), original, { coreSession: "work" });
+  assert.equal(page.history.length, 1);
+  assert.equal(page.resolvedSpace.coreSession, "work");
+  assert.equal(acceptHistoryPage(page, original), true);
+});

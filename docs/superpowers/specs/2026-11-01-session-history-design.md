@@ -2,17 +2,18 @@
 
 ## Intent and acceptance criteria
 
-Help a person running several coding agents find and reopen saved conversations without mixing them with agents already open in Herdr. The selected Space scopes the entire sidebar before sorting, grouping, searching, or counting.
+Help a person running several coding agents find and reopen saved conversations without mixing browsing with activated agent work. The selected Space scopes the entire sidebar before sorting, grouping, searching, or counting.
 
 The user confirmed these requirements:
 
-- Add Session History below Agents. Keep idle, running agents in Agents.
+- Add Session History below Agents. Keep previously activated idle agents in Agents.
 - Discover saved Claude Code and OpenCode V2 conversations, including conversations created outside Herdr.
 - Filter both sections by the selected Space. Do not offer an All workspaces scope.
 - Offer newest-first, directory grouping, and another useful view.
 - Always show the harness icon, including in the narrow sidebar.
 - A session belongs to exactly one section, never both or neither.
-- Use the boundary **open in Herdr** versus **saved but not open in Herdr**. External activity is separate from this placement.
+- Clicking a History row opens the normal harness session for browsing. It remains in History until a new message or actual work starts; viewing and scrolling do not activate it. An activated session remains in Agents when it later becomes idle or done.
+- History uses 28-pixel single-line rows, with a harness icon, title and compact age. It has no Resume button, link or second metadata line. Its heading aligns with Agents.
 
 For every resolved session identity included in the selected Space's snapshot:
 
@@ -65,7 +66,7 @@ Never deduplicate by title, cwd, branch, or terminal address. Preserve separate 
 
 Resolve inclusion in the selected Space before constructing rows:
 
-1. A verified current Herdr binding supplies the authoritative Space association while the conversation is open. A session open in a different Space must not also appear as history here merely because its folder matches.
+1. A verified current Herdr binding supplies the authoritative Space association while the conversation is open. A session activated in a different Space must not also appear as history here merely because its folder matches.
 2. When the last binding closes, preserve the last verified Space association. Do not make a historical record follow a shell's later cd command.
 3. For a conversation never associated with Herdr, propose matching its host and normalized native session directory to the selected Space's folder. Match exact directories initially, not arbitrary string prefixes, repository names, or inferred worktree families.
 4. If several Spaces use the same exact folder, the proposed external-history rule lets that saved record be discoverable under each matching Space. It remains one row in any selected-Space view. A verified Herdr association takes precedence over folder discovery.
@@ -82,19 +83,23 @@ Keep these independent facts:
 - **Connection quality:** confirmed, reconnecting, or unavailable.
 - **Open action:** none, opening, or failed.
 - **Saved-record availability:** available, checking, or unavailable.
+- **Binding intent:** browsing or activated. A History click records an exact identity-and-Space browsing intent before launch. Verified binding registration consumes it; a new user prompt or work event activates that binding. Historical message replay, startup metadata, viewing and scrolling do not activate it.
 
 Placement rules:
 
 | Evidence | Placement | Display |
 | --- | --- | --- |
-| Exact conversation has at least one confirmed open Herdr binding | Agents | Current activity, even idle or done |
-| Exact binding is open but has not reported activity | Agents | Activity unavailable |
+| Exact conversation has at least one activated open Herdr binding | Agents | Current activity, even idle or done |
+| Activated binding is open but has not reported activity | Agents | Activity unavailable |
+| Exact conversation is open only for browsing | Session History | Open for viewing; no new work requested here |
 | Saved conversation has no open Herdr binding after successful reconciliation | Session History | Saved, not open in Herdr |
 | Previously confirmed open binding cannot currently be checked | Retain Agents | Connection unavailable; do not claim closure |
 | Previously historical source cannot currently be checked | Retain Session History | Last known data; availability unavailable |
 | Newly discovered external record has no known Herdr binding | Session History | External activity unknown unless a reliable source establishes it |
 
 Unknown connection or activity is a badge, not a third section. Absence from one failed or incomplete response never proves closure. The ended field is an observation, not the sole source of truth, and ending one binding must not close another binding to the same conversation.
+
+If an activated binding and browsing bindings coexist, the identity appears once in Agents. A late browsing snapshot cannot undo confirmed activation for the same binding generation. Newly launched agents outside the History-opening flow retain normal Agents placement.
 
 A detected harness without a resolved native session ID can show a distinct **Identifying session** placeholder in Agents. It is not a second identified conversation. Do not suppress an arbitrary history entry by matching its title or directory. Report unavailable identity integration rather than claiming exact live/history reconciliation for that terminal.
 
@@ -105,7 +110,7 @@ A detected harness without a resolved native session ID can show a distinct **Id
 - A confirmed agent exit releases that binding. The session moves to History only when no open binding remains.
 - Returning to a shell or recovering a terminal as a shell is not agent resumption.
 - Switching conversation A to B releases A's binding and claims B by its exact identity. A moves to History unless another binding still holds A.
-- Resuming leaves the row in History marked Opening until the exact new binding is confirmed. It then moves to Agents in one classified snapshot.
+- Opening a History row keeps it in History while launching and after its browsing binding is confirmed. A new Claude user-prompt/tool-work hook or new OpenCode user-inbox/work-start event promotes it to Agents in one classified snapshot.
 - A failed resume leaves the original History row and shows an actionable error. Never create an empty replacement conversation when lookup fails.
 - A connection loss preserves last confirmed placement. Reconnection reconciles an authoritative snapshot before applying inferred removals.
 - A confirmed deletion removes the saved-record availability. If the conversation remains open, retain its Agents row with a warning. If it is neither saved nor open, it is no longer a member of the session inventory.
@@ -117,7 +122,7 @@ Preserve the current visual language and the fixed 44-pixel Spaces selector. Kee
 Below it, the existing mod draws two independently collapsible sections in one scrollable sidebar body:
 
 1. **Agents:** current session cards and their activity indicators.
-2. **Session History:** compact session rows, a count, search, and a view-options menu.
+2. **Session History:** dense single-line rows, a count, search, and a view-options menu.
 
 History views:
 
@@ -129,7 +134,7 @@ Do not add By workspace: the selected Space already supplies that scope. Search 
 
 Every session row has a non-shrinking leading harness icon. Use the saved harness identity to resolve Herdr's current program icon, respecting tint versus full-color images. Never substitute the surviving shell's icon for a known Claude or OpenCode conversation. An unavailable custom asset gets a visible generic agent fallback and a harness-name tooltip, not an empty slot.
 
-Expanded History rows show title, last-updated time, and folder context, with an explicit Resume action. Keyboard activation uses the same action. The narrow sidebar keeps the harness icon and a descriptive tooltip; expanding it restores all controls. Loading, no matching sessions, no search matches, partial source failure, stale data, and failed resume have distinct copy. Counts must not imply complete discovery while a source is incomplete.
+Expanded History rows are 28 pixels high and show only the harness icon, title and compact age. The entire row is the Open action; Enter/Space uses the same action. Folder, machine, availability and errors stay in the tooltip and accessible description, not a second line or action label. Opening uses an inline spinner. The narrow sidebar keeps the harness icon and a descriptive tooltip. Loading, no matching sessions, no search matches, partial source failure, stale data, and failed opening remain distinguishable. Counts must not imply complete discovery while a source is incomplete. Periodic refresh preserves already-loaded pages for the current view/query.
 
 Only live Agents contribute to setAgentOrder. History navigation must not change agent.next/agent.prev semantics.
 
@@ -143,7 +148,7 @@ The helper normalizes native metadata into a versioned history snapshot containi
 - Bound rendered output through paging or virtualization. Keep the complete filtered count honest about whether catalog discovery is complete. Do not perform a full harness-history scan during render or for every row.
 - Reuse the existing explicit producer and remote trust configuration. Do not set up SSH, pair remote agents, start an unconfigured server, restart services, or read arbitrary remote histories automatically.
 
-Resume is user initiated. Recheck native session existence and current bindings before launching. Focus an existing binding when available. Otherwise start the exact native ID in a new tab of the associated Space, on its execution machine, using the original valid directory and authority. Claude uses its exact-ID resume option; OpenCode uses its session option only after successful lookup because that option can create a new ID when missing. Preserve normal permissions and authentication; do not invent or replay bypass flags.
+Opening is user initiated. Recheck native session existence and current bindings before launching. Focus an existing binding, including a browsing binding, when available. Otherwise record the browsing intent and start the exact native ID in a new tab of the associated Space, on its execution machine, using the original valid directory and authority. Claude uses its exact-ID resume option; OpenCode uses its session option only after successful lookup because that option can create a new ID when missing. Preserve normal permissions and authentication; do not invent or replay bypass flags.
 
 If the folder, harness, execution host, or authority is unavailable, keep the row and explain the blocker. Do not silently resume locally, create a new Space, change directory, or fork the conversation. Duplicate activation while Opening must not launch another terminal.
 
@@ -166,7 +171,8 @@ Implementation uses an isolated feature worktree. The controller owns commits an
 Automated acceptance must prove:
 
 - Exhaustive and disjoint partitioning for all resolved identities after Space filtering.
-- Working, blocked, done, idle, and missing activity remain Agents while bound.
+- Activated bindings remain Agents through working, blocked, done, idle, and missing activity. Activity words alone do not activate a browsing binding.
+- A History-opened browsing binding stays in History until genuine new interaction; startup replay and old server events cannot activate it. Repeated row clicks focus its existing terminal, and activation is monotonic within a binding generation.
 - Exit into a surviving shell, shell recovery, A-to-B conversation switching, and same-session resume.
 - Multiple bindings, delayed end events, stale generations, reused terminal addresses, and identical titles/IDs across different authorities.
 - Successful empty reads versus partial pages, failed reads, disconnects, and reconnects; no disappearance on an error.
@@ -180,4 +186,4 @@ Run focused tests, npm test, the clean-install proof, privacy checks, and bundle
 
 ## Review decisions
 
-Approve or correct the proposed exact-directory fallback and same-folder Space behaviour before implementation. The remainder of this spec records the agreed open-in-Herdr state boundary and its consequences. After spec approval, write and review the implementation plan, then select native execution or delegated task execution.
+The exact-directory fallback and same-folder Space behaviour were approved. During native execution, the user also approved left-aligned headings, single-line History rows with row-click opening, and promotion only on new interaction/work. This revision records those refinements and supersedes the earlier open-only placement boundary and Resume-button presentation.

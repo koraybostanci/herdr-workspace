@@ -1,12 +1,12 @@
 import { InputState } from "gpui-base";
 import { appHome, readTextFile, exec, focused, run, shared, setShared } from "herdr";
-import { reconcileSessionRegistry, partitionSpaceSessions, sessionIdentityKey, validateRegistry } from "./session-registry.js";
+import { reconcileSessionRegistry, partitionSpaceSessions, sessionIdentityKey, validateRegistry, registryBindingKey } from "./session-registry.js";
 import { historyGroups, historyViewMode, acceptHistoryPage } from "./history-model.js";
 
 const empty = () => ({ schema: 1, owner: "herdr-session-metadata", revision: 0, updatedAt: 0, sessions: [], sources: [] });
 export class HistoryController {
   init(cx) {
-    this.registry = empty(); this.cache = new Map(); this.pending = new Map(); this.requestSeq = 0; this.loading = false;
+    this.registry = empty(); this.cache = new Map(); this.contexts = new Map(); this.pending = new Map(); this.requestSeq = 0; this.loading = false;
     this.query = ""; this.selectedKey = null; this.menuOpen = false; this.menuIndex = 0;
     this.listHandle = cx.focus_handle(); this.menuHandle = cx.focus_handle();
     this.search = InputState.new({ placeholder: "Search sessions…" });
@@ -26,6 +26,7 @@ export class HistoryController {
       this.currentRequest = null; this.error = null; this.selectedKey = null; this.contextKey = contextKey;
     }
     this.space = space;
+    if (space) this.contexts.set(JSON.stringify([space.id, space.machine ?? null]), space);
   }
   async call(command, request) {
     const home = appHome(), raw = await readTextFile(`${home}/data/space-agents/runtime.json`);
@@ -42,11 +43,25 @@ export class HistoryController {
     if (!this.space) return;
     const request = { space: this.space, view: historyViewMode(shared("space-agents.history.view")), query: this.query,
       offset: append ? this.page?.nextOffset ?? 0 : 0, limit: 50, requestId: String(++this.requestSeq) };
+    const sameView = this.page?.request.view === request.view && this.page.request.query === request.query && this.page.request.space.id === request.space.id;
+    const target = !append && sameView ? Math.max(50, this.registry.sessions.filter(e => e.bindings.every(b => b.browsing)).length) : 50;
     if (this.loading && !append && this.currentRequest?.space.id === request.space.id && this.currentRequest.view === request.view && this.currentRequest.query === request.query) return;
     this.currentRequest = request; this.loading = true; this.error = null;
     cx.spawn(async cx => {
       try {
-        const result = await this.call("history-view", request);
+        let result = await this.call("history-view", request);
+        if (!append && target > 50 && acceptHistoryPage(result, request)) {
+          const loaded = new Map(result.history.map(row => [sessionIdentityKey(row.session), row]));
+          while (loaded.size < target && result.hasMore) {
+            if (this.currentRequest?.requestId !== request.requestId || this.query !== request.query) return;
+            const nextRequest = { ...request, offset: result.nextOffset };
+            const next = await this.call("history-view", nextRequest);
+            if (!acceptHistoryPage(next, nextRequest) || next.nextOffset <= nextRequest.offset) throw Error("invalid-history-page");
+            for (const row of next.history) loaded.set(sessionIdentityKey(row.session), row);
+            result = next;
+          }
+          result = { ...result, request, history: [...loaded.values()] };
+        }
         if (!this.acceptPage(result, request, append) && this.currentRequest?.requestId === request.requestId && this.query === request.query) this.error = "History returned invalid data. Retry after updating the metadata helper.";
       }
       catch { if (this.currentRequest?.requestId === request.requestId) this.error = "History unavailable. Check the metadata helper, then retry."; }
@@ -59,22 +74,31 @@ export class HistoryController {
       || focused()?.space && focused().space !== request.space.id) return false;
     let registry;
     try {
-      const entries = new Map(append ? this.registry.sessions.filter(e => !e.bindings.length).map(e => [sessionIdentityKey(e.session), e]) : []);
-      for (const row of [...response.agents, ...response.history]) entries.set(sessionIdentityKey(row.session), row);
+      const activated = new Set(this.registry.sessions.flatMap(e => e.bindings.filter(b => b.browsing === false).map(b => JSON.stringify([registryBindingKey(b), b.generation]))));
+      const preserveActivation = row => ({ ...row, bindings: row.bindings.map(b => activated.has(JSON.stringify([registryBindingKey(b), b.generation])) ? { ...b, browsing: false } : b) });
+      const entries = new Map(append ? this.registry.sessions.filter(e => e.bindings.every(b => b.browsing)).map(e => [sessionIdentityKey(e.session), e]) : []);
+      for (const row of response.agents) entries.set(sessionIdentityKey(row.session), preserveActivation(row));
+      for (const row of response.history) entries.set(sessionIdentityKey(row.session), { ...preserveActivation(row), matchedHistoryQuery: request.query });
       registry = { schema: 1, owner: "herdr-session-metadata", revision: response.revision, updatedAt: Date.now(), sessions: [...entries.values()], sources: response.sources };
       if (!validateRegistry(registry)) return false;
     } catch { return false; }
     this.registry = registry;
     this.page = response; this.space = response.resolvedSpace ?? request.space; this.error = null;
+    this.contexts.set(JSON.stringify([this.space.id, this.space.machine ?? null]), this.space);
     return true;
   }
   partition(observations) {
     this.registry = reconcileSessionRegistry(this.registry, { presence: observations, now: Date.now() });
     const partition = partitionSpaceSessions({ registry: this.registry, space: this.space });
-    for (const row of partition.agents) this.pending.delete(row.key);
+    for (const row of [...partition.agents, ...partition.history]) if (row.primaryBinding && row.connection === "confirmed") this.pending.delete(row.key);
     return partition;
   }
-  groups(rows) { return historyGroups(rows, { mode: historyViewMode(shared("space-agents.history.view")), query: this.query }); }
+  groups(rows) {
+    const needle = this.query.trim().toLowerCase();
+    // The helper searches full titles; its matches survive display-only truncation.
+    const matching = rows.filter(r => r.matchedHistoryQuery === this.query || !needle || `${r.title}\n${r.directory ?? ""}`.toLowerCase().includes(needle));
+    return historyGroups(matching, { mode: historyViewMode(shared("space-agents.history.view")) });
+  }
   chooseView(mode, cx) { setShared("space-agents.history.view", mode); this.menuOpen = false; this.refresh(cx); cx.notify(); }
   toggle(section, cx) { const folded = shared("space-agents.sections") ?? {}; setShared("space-agents.sections", { ...folded, [section]: !folded[section] }); cx.notify(); }
   resume(row, cx) {
@@ -83,7 +107,7 @@ export class HistoryController {
     this.pending.set(row.key, { state: "opening" }); cx.notify();
     cx.spawn(async cx => {
       try {
-        const result = await this.call("prepare-resume", { session: row.session, space });
+        const result = await this.call("prepare-resume", { session: row.session, space, browsing: true });
         if (this.space?.id !== space.id || focused()?.space && focused().space !== space.id) { this.pending.delete(row.key); return; }
         if (result.sessionKey !== row.key || result.error) throw Error(result.error ?? "session-unavailable");
         if (result.kind === "focus" && typeof result.terminal === "string") { run("agent.focus", { terminal: result.terminal }); this.pending.delete(row.key); }

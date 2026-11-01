@@ -7,7 +7,16 @@ export async function probeSessionBinding(binding, { run, env = {} }) {
   if (!validBinding(binding)) return result("unknown", "invalid-binding");
   const options = { env: { HC_SESSION: binding.coreSession ?? env.HC_SESSION ?? "default" } };
   try {
-    if (binding.mode === "paired") return result(await ownerIsLive(binding, run) ? "open" : "unknown", "paired-owner");
+    if (binding.mode === "paired") {
+      if (!binding.ownerPid || !binding.ownerStartedAt) return result("unknown", "paired-owner-unverified");
+      const process = await run("local", "ps", ["-o", "pid=", "-p", String(binding.ownerPid)], options);
+      if (process.code !== 0) return result(process.code === 1 && !process.stdout?.trim() && !process.stderr?.trim() ? "closed" : "unknown", "paired-owner-unavailable");
+      if (Number(process.stdout.trim()) !== binding.ownerPid) return result("unknown", "paired-owner-unverified");
+      const start = await run("local", "ps", ["-o", "lstart=", "-p", String(binding.ownerPid)], options);
+      if (start.code !== 0 || !start.stdout.trim()) return result("unknown", "paired-owner-unverified");
+      if (start.stdout.trim() !== binding.ownerStartedAt) return result("closed", "paired-owner-replaced");
+      return result(await ownerIsLive(binding, run) ? "open" : "unknown", "paired-owner");
+    }
     const response = await run("local", "hc", ["get", binding.terminal, "--json"], options);
     if (response.code !== 0) {
       let kind;
@@ -64,6 +73,11 @@ export async function collectSessionPresence(runtime, peers = []) {
         if (binding.mode === "inherited") binding = { ...binding, coreHost: peer.host, address: `${peer.target}/${binding.terminal}`,
           space: binding.space && { ...binding.space, id: `${peer.target}/${binding.space.id}` }, tab: binding.tab && `${peer.target}/${binding.tab}` };
         else {
+          if (observation.state !== "open") {
+            const old = known.find(b => b.fromPeerId === peer.id && registryBindingKey(b) === registryBindingKey(binding) && b.generation === binding.generation);
+            if (old) received.push({ ...observation, binding: old });
+            continue;
+          }
           if (!await reconcileBinding(binding, peer, runtime)) throw Error("Pairing unavailable");
           const origin = await runtime.run("local", "hc", ["get", binding.terminal, "--json"], { env: { HC_SESSION: binding.coreSession } });
           const term = origin.code === 0 && JSON.parse(origin.stdout);

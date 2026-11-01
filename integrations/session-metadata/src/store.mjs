@@ -89,6 +89,22 @@ export function createStore({ root, viewFile, clock = Date.now }) {
         if (value?.owner === OWNER && value.schema === 1) await atomicJson(location, { ...value, missing: true });
       });
     },
+    async beginHistoryBrowse(session, space, baseline = 0) {
+      const key = sessionKey(session);
+      if (!space || ![space.host, space.coreSession, space.id].every(v => typeof v === "string" && v && !/[\x00-\x1f\x7f]/.test(v))) throw Error("Invalid browsing Space");
+      return store.withMutation(session, () => atomicJson(path("history-opening", key), { schema: 1, owner: OWNER, session,
+        space: { host: space.host, coreSession: space.coreSession, id: space.id }, baseline: Number.isSafeInteger(baseline) && baseline >= 0 ? baseline : 0 }));
+    },
+    async activateSessionBinding(binding, { observedAt } = {}) {
+      if (!validBinding(binding)) return false;
+      return locked(`binding:${bindingKey(binding)}`, async () => {
+        const current = await store.getBinding(bindingKey(binding));
+        if (current?.generation !== binding.generation || sessionKey(current.session) !== sessionKey(binding.session) || current.browsing !== true
+          || observedAt != null && (!Number.isSafeInteger(observedAt) || observedAt <= (current.browseBaseline ?? 0))) return false;
+        await atomicJson(path("bindings", bindingKey(binding)), { ...current, browsing: false });
+        return true;
+      });
+    },
     withMutation(key, action) { return locked(`mutation:${sessionKey(key)}`, action); },
     async read(key) {
       await ensure();
@@ -118,7 +134,14 @@ export function createStore({ root, viewFile, clock = Date.now }) {
       return store.withMutation(binding.session, () => locked(`binding:${key}`, async () => {
         const old = await store.getBinding(key);
         if ((old?.generation ?? null) !== expectedGeneration) return false;
-        await atomicJson(path("bindings", key), binding);
+        const intent = await readJson(path("history-opening", sessionKey(binding.session)));
+        const sameOwner = old && sessionKey(old.session) === sessionKey(binding.session) && old.processPid === binding.processPid;
+        const browsingIntent = intent?.owner === OWNER && intent.schema === 1 && binding.space
+          && intent.space?.host === binding.space.host && intent.space.coreSession === binding.space.coreSession && intent.space.id === binding.space.id;
+        const registered = { ...binding, browsing: sameOwner ? old.browsing === true : Boolean(browsingIntent),
+          browseBaseline: sameOwner ? old.browseBaseline ?? 0 : browsingIntent ? intent.baseline : 0 };
+        await atomicJson(path("bindings", key), registered);
+        if (browsingIntent) await fs.unlink(path("history-opening", sessionKey(binding.session)));
         if (binding.space) await atomicJson(path("history-associations", sessionKey(binding.session)),
           { schema: 1, owner: OWNER, session: binding.session, space: binding.space, directory: normalizedDirectory(binding.lookupDir), associatedAt: clock() });
         return true;

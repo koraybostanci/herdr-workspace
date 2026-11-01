@@ -104,7 +104,7 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
   else if (command === "history-view") {
     const { refreshSessionCatalog } = await import("../src/history-catalog.mjs");
     const { createHistoryView } = await import("../src/history-view.mjs");
-    output = createHistoryView(await refreshSessionCatalog(runtime), JSON.parse(argument(argv, "request")));
+    output = createHistoryView(await refreshSessionCatalog(runtime), JSON.parse(argument(argv, "request")), { coreSession: runtime.env?.HC_SESSION });
   }
   else if (command === "prepare-resume") {
     const { prepareSessionResume } = await import("../src/history-view.mjs");

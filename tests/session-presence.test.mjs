@@ -96,3 +96,26 @@ test("peer reconnect reconciles a complete empty inventory without treating outa
     assert.equal(result.presence[0].state, connected ? "closed" : "unknown");
   }
 });
+
+test("paired producer death and PID replacement are closed, while failed probes stay unknown", async () => {
+  const f = fixture(), binding = { ...f.binding, mode: "paired", ownerPid: 30, ownerStartedAt: "original" };
+  for (const [scenario, expected] of [["dead", "closed"], ["replaced", "closed"], ["offline", "unknown"], ["live", "open"]]) {
+    const result = await probeSessionBinding(binding, { run: async (_host, command, args) => {
+      assert.equal(command, "ps");
+      if (scenario === "offline") throw Error("transport unavailable");
+      if (scenario === "dead") return { code: 1, stdout: "", stderr: "" };
+      return { code: 0, stdout: args.includes("pid=") ? "30" : args.includes("lstart=") ? scenario === "replaced" ? "new process" : "original" : "S 30 30", stderr: "" };
+    } });
+    assert.equal(result.state, expected, scenario);
+  }
+});
+
+test("confirmed paired closure reaches the registry even after its origin is gone", async () => {
+  const f = fixture(), binding = { ...f.binding, mode: "paired", ownerPid: 30, ownerStartedAt: "original", fromPeerId: "peer", session: { ...f.binding.session, host: "remote" } };
+  const result = await collectSessionPresence({ env: {}, store: { listBindings: async () => [] }, previous: { sessions: [{ bindings: [binding] }] },
+    run: async (_host, command) => {
+      assert.equal(command, "ssh", "confirmed producer death does not need to re-pair the original terminal");
+      return { code: 0, stdout: JSON.stringify({ schema: 1, owner: "herdr-session-metadata", presence: [{ state: "closed", binding }] }) };
+    } }, [{ id: "peer", host: "remote", target: "box", transport: "ssh" }]);
+  assert.equal(result.presence[0].state, "closed");
+});

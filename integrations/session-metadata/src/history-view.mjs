@@ -12,10 +12,10 @@ function validRequest(request) {
   return request?.space && [request.space.host, request.space.coreSession, request.space.id, request.requestId].every(s => typeof s === "string" && s && !/[\x00-\x1f\x7f]/.test(s))
     && typeof request.query === "string" && request.query.length <= 512 && Number.isSafeInteger(request.offset) && request.offset >= 0 && request.limit === 50;
 }
-export function createHistoryView(registry, request) {
+export function createHistoryView(registry, request, { coreSession } = {}) {
   if (!validRequest(request) || !validateRegistry(registry)) throw Error("Invalid history request or registry");
   const mapped = request.space.machine && registry.sources.find(s => s.machine === request.space.machine);
-  const resolvedSpace = mapped ? { ...request.space, host: mapped.host } : request.space;
+  const resolvedSpace = { ...request.space, ...(mapped ? { host: mapped.host } : {}), ...(!request.space.machine && coreSession ? { coreSession } : {}) };
   const partition = partitionSpaceSessions({ registry, space: resolvedSpace });
   const allGroups = historyGroups(partition.history, { mode: request.view, query: request.query });
   const ordered = allGroups.flatMap(g => g.rows);
@@ -39,7 +39,7 @@ async function configuredPeers(runtime) {
   const config = await readJson(join(runtime.root, "peers.json"));
   return config?.owner === OWNER && Array.isArray(config.peers) ? config.peers : [];
 }
-export async function prepareSessionResume(runtime, { session, space }) {
+export async function prepareSessionResume(runtime, { session, space, browsing = false }) {
   if (!validSession(session) || !/^[A-Za-z0-9][\w-]*$/.test(session.id) || !space?.id) return { error: "session-unavailable" };
   const key = sessionIdentityKey(session), peers = await configuredPeers(runtime);
   let registry;
@@ -57,17 +57,20 @@ export async function prepareSessionResume(runtime, { session, space }) {
   const partition = partitionSpaceSessions({ registry, space });
   const row = [...partition.agents, ...partition.history].find(r => r.key === key);
   if (!row) return { error: "session-unavailable" };
-  if (row.placement === "agents") return row.connection === "confirmed"
+  if (row.primaryBinding) return row.connection === "confirmed"
     ? { kind: "focus", sessionKey: key, terminal: row.primaryBinding.address, pane: row.primaryBinding.pane }
     : { error: "connection-unavailable" };
   if (session.host !== (runtime.env?.HERDR_METADATA_HOST ?? "local")) {
     const peer = peers.find(p => p.host === session.host && p.target === space.machine);
     if (!peer || !space.id.startsWith(peer.target + "/")) return { error: "execution-host-unavailable" };
     try {
-      const request = { session, space: { ...space, id: space.id.slice(peer.target.length + 1), machine: null } };
+      const request = { session, browsing, space: { ...space, id: space.id.slice(peer.target.length + 1), machine: null } };
       const reply = await callPeer(peer, ["prepare-resume", "--request", JSON.stringify(request), "--json"], runtime.run);
       const prepared = reply.code === 0 && JSON.parse(reply.stdout);
       const source = registry.sources.find(s => s.id === row.sourceId);
+      if (prepared?.kind === "focus" && prepared.sessionKey === key && typeof prepared.terminal === "string" && /^[A-Za-z0-9_-]+$/.test(prepared.terminal)) {
+        return { kind: "focus", sessionKey: key, terminal: `${peer.target}/${prepared.terminal}`, pane: null };
+      }
       if (prepared?.kind !== "launch" || prepared.sessionKey !== key || prepared.command !== "tab.new"
         || prepared.args?.folder !== row.directory || JSON.stringify(prepared.args.argv) !== JSON.stringify(resumeArguments(session, source))) return { error: "remote-resume-unavailable" };
       return { kind: "launch", sessionKey: key, command: "tab.new", args: { ...prepared.args, space: space.id } };
@@ -84,6 +87,11 @@ export async function prepareSessionResume(runtime, { session, space }) {
   const argv = resumeArguments(session, source);
   try { if ((await runtime.run("local", argv[0], ["--version"], { cwd: row.directory })).code !== 0) return { error: "harness-unavailable" }; }
   catch { return { error: "harness-unavailable" }; }
+  if (browsing) {
+    if (session.harness === "opencode-v2" && !Number.isSafeInteger(found.info.time?.updated)) return { error: "session-unavailable" };
+    const baseline = Math.max(0, ...Object.values(found.info.time ?? {}).filter(v => Number.isSafeInteger(v) && v >= 0));
+    await runtime.store.beginHistoryBrowse(session, space, baseline);
+  }
   return { kind: "launch", sessionKey: key, command: "tab.new", args: { space: space.id, name: row.title, folder: row.directory, argv } };
 }
 function resumeArguments(session, source) {

@@ -3,9 +3,9 @@ import { v_flex, h_flex, Button, Popover, Input } from "gpui-base";
 import { historyProgram, historyViewMode } from "./history-model.js";
 
 function age(timestamp) {
-  if (!timestamp) return "Date unavailable";
+  if (!timestamp) return "—";
   const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
-  return minutes < 1 ? "Just now" : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.floor(minutes / 60)}h ago` : `${Math.floor(minutes / 1440)}d ago`;
+  return minutes < 1 ? "<1m" : minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`;
 }
 export function renderSessionHistory({ rows, groups, controller: c, compact, theme: t, knownPrograms, folded }) {
   const mode = historyViewMode(c.mode), options = [{ value: "recent", label: "Recent" }, { value: "folder", label: "By folder" }, { value: "harness", label: "By harness" }];
@@ -26,32 +26,27 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
   const row = r => {
     const program = historyProgram(r.session, knownPrograms), pending = c.pending.get(r.key), opening = pending?.state === "opening";
     const icon = (program.tint ? svg(program.icon).text_color(t.foreground) : image(program.icon)).id(`session-history-icon-${r.key}`).w(16).h(16).flex_none();
-    const description = `${r.title}, ${program.name}, ${r.directory ?? "Directory unavailable"}, ${age(r.updatedAt)}, ${r.saved === "available" ? "saved" : "saved availability unverified"}, not open in Herdr. External activity unknown.`;
-    const root = v_flex().id(`session-history-${r.key}`).w_full().min_w(0).flex_none().px(compact ? 6 : 8).py(7).gap(4).rounded(6)
-      .bg(c.selectedKey === r.key ? t.selected : t.chrome).hover(el => el.bg(t.hover)).cursor_pointer()
-      .role("list_box_option").aria_selected(c.selectedKey === r.key).accessibility_label(description).tooltip(compact ? description : r.title)
-      .on_click((_e, cx) => { c.selectedKey = r.key; c.resume(r, cx); });
-    if (compact) return root.child(h_flex().justify_center().items_center().child(icon));
-    return root.child(h_flex().min_w(0).items_center().gap(8).child(icon)
-      .child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(r.title))
-      .child(Button.new(`session-history-resume-${r.key}`).h(24).px(5).flex_none().rounded(4).text_size(11).text_color(opening ? t.muted : t.accent)
-        .accessibility_label(`Resume ${r.title}`).when(!opening, el => el.cursor_pointer().hover(el => el.bg(t.raised)).on_click((_e, cx) => { cx.stop_propagation(); c.resume(r, cx); }))
-        .child(opening ? "Opening…" : pending?.state === "error" ? "Retry" : "Resume")))
-      .child(h_flex().pl(24).min_w(0).gap(8).text_size(11).text_color(t.muted)
-        .child(div().flex_1().min_w(0).truncate().tooltip(`${r.session.host} · ${r.directory ?? "Directory unavailable"}`).child(r.directory?.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || r.directory || "Directory unavailable"))
-        .child(div().flex_none().child(age(r.updatedAt))))
-      .when(Boolean(pending?.message), el => el.child(div().pl(24).text_size(11).text_color(t.muted).child(pending.message)))
-      .when(r.saved === "checking", el => el.child(div().pl(24).text_size(11).text_color(t.muted).child("Checking saved-session availability…")));
+    const presence = r.primaryBinding?.browsing ? "Open for viewing; no new work requested here" : "Saved history; external activity unknown";
+    const description = `${r.title}, ${program.name}, ${r.session.host} · ${r.directory ?? "Directory unavailable"}, ${r.updatedAt ? age(r.updatedAt) + " ago" : "Date unavailable"}, ${r.saved === "available" ? "saved" : "saved availability unverified"}. ${presence}.${pending?.message ? " " + pending.message : ""}`;
+    return h_flex().id(`session-history-${r.key}`).h(28).w_full().min_w(0).flex_none().px(compact ? 6 : 8).gap(8).items_center().rounded(3)
+      .bg(c.listHandle.is_focused() && c.selectedKey === r.key ? t.selected : t.chrome).hover(el => el.bg(t.hover)).cursor_pointer()
+      .role("list_box_option").aria_selected(c.selectedKey === r.key).accessibility_label(`Open ${description}`).tooltip(description)
+      .on_click((_e, cx) => { c.selectedKey = r.key; c.listHandle.focus(); c.resume(r, cx); })
+      .when(compact, el => el.justify_center()).child(icon)
+      .when(!compact, el => el.child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(r.title))
+        .child(opening ? svg("mods/workspace-chrome/spinner.svg").id(`session-history-opening-${r.key}`).size(12).flex_none().text_color(t.muted).spin(900)
+          : div().flex_none().text_size(10.5).text_color(pending?.state === "error" ? t.blocked : t.muted).child(age(r.updatedAt))));
   };
   if (!rows.some(r => r.key === c.selectedKey)) c.selectedKey = rows[0]?.key ?? null;
   const partial = c.page && !c.page.complete;
   const count = c.page?.hasMore ? Math.max(c.page.total, rows.length) : rows.length;
   return v_flex().id("session-history").w_full().min_w(0).flex_none().border_t(1).border_color(t.border).pb(8)
     .when(!compact, el => el.child(h_flex().h(42).px(14).gap(6).items_center()
-      .child(Button.new("session-history-toggle").h(28).flex_1().min_w(0).gap(6).items_center().justify_start().cursor_pointer().text_color(t.foreground)
+      .child(Button.new("session-history-toggle").h(28).min_w(0).gap(6).items_center().cursor_pointer().text_color(t.foreground)
         .accessibility_label(folded ? "Expand Session History" : "Collapse Session History").on_click((_e, cx) => c.toggle("history", cx))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(t.muted))
         .child(div().text_size(13).font_medium().truncate().child("Session History")))
+      .child(div().id("session-history-header-spacer").flex_1().min_w(0))
       .child(div().text_size(11).flex_none().text_color(t.muted).tooltip(partial ? "Known sessions; discovery is incomplete" : "Saved sessions in this Space").child(partial ? `${count}+` : String(count)))
       .child(viewMenu)))
     .when(!folded && !compact, el => el.child(div().px(14).pb(6).child(Input.new(c.search).id("session-history-search").h(29).px(8).rounded(5)
@@ -69,7 +64,7 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
         if (key === "enter" || key === "space") c.resume(rows[index], cx);
         else if (key === "up" || key === "down") c.selectedKey = rows[(index + (key === "down" ? 1 : rows.length - 1)) % rows.length].key;
         else return; cx.stop_propagation(); cx.notify();
-      }).children(groups.map(g => v_flex().id(`session-history-group-${g.key}`).w_full().min_w(0).flex_none().gap(2).role("group").accessibility_label(`${g.rows[0].session.host} · ${g.label}`)
+      }).children(groups.map(g => v_flex().id(`session-history-group-${g.key}`).w_full().min_w(0).flex_none().gap(0).role("group").accessibility_label(`${g.rows[0].session.host} · ${g.label}`)
         .when(!compact, el => el.child(div().px(8).pt(10).pb(3).text_size(11).font_medium().text_color(t.muted).truncate().tooltip(`${g.rows[0].session.host} · ${g.label}`).child(groupLabel(g))))
         .children(g.rows.map(row))))))
     .when(!folded && !compact && Boolean(c.page?.hasMore), el => el.child(Button.new("session-history-more").h(30).mx(14).text_size(12).text_color(t.accent)

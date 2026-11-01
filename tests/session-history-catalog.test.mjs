@@ -21,6 +21,11 @@ test("Claude discovery requests all root metadata without reading messages or re
   assert.ok(!JSON.stringify(page).includes("private prompt"));
 });
 
+test("native POSIX session directories retain literal backslashes for exact resumption", async () => {
+  const page = await discoverClaudeSessions({ source: source("claude"), sdk: { listSessions: async () => [claude("literal", { cwd: "/repo/a\\b" })] } });
+  assert.equal(page.entries[0].directory, "/repo/a\\b");
+});
+
 test("OpenCode discovery preserves identity and archive metadata is not an inactivity signal", async () => {
   const page = await discoverOpenCodeSessions({ source: source("opencode-v2"), limit: 100, run: async (_host, command, args) => {
     assert.equal(command, "opencode");

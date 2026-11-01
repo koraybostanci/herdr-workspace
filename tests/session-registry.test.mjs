@@ -42,6 +42,12 @@ test("Windows drive roots compare without losing the root separator", () => {
   assert.deepEqual(ids(result.history), ["root"]);
 });
 
+test("literal POSIX backslashes never alias another Space's directory", () => {
+  assert.equal(normalizedDirectory("/repo/a\\b"), "/repo/a\\b");
+  const sessions = [entry("literal", { directory: "/repo/a\\b" }), entry("nested", { directory: "/repo/a/b" })];
+  assert.deepEqual(ids(partitionSpaceSessions({ registry: registry(sessions), space: { ...space, folder: "/repo/a\\b" } }).history), ["literal"]);
+});
+
 test("verified associations beat same-folder discovery before and after closing", () => {
   const saved = entry("ses_A", { associations: [{ ...space, associatedAt: 10 }], bindings: [binding()] });
   assert.deepEqual(partitionSpaceSessions({ registry: registry([saved]), space: other }), { agents: [], history: [] });
