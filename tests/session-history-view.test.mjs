@@ -31,6 +31,19 @@ test("History renders below Agents and every visible view retains its harness ic
     assert.deepEqual(state.order, []);
   }
 });
+
+test("the History heading aligns with the sidebar's leading content", () => {
+  assert.ok(find(render(fixture()), "session-history-toggle").attributes.justify_start);
+});
+
+test("folder headings expose distinguishing path tails while retaining full tooltips", () => {
+  const view = fixture([historyEntry("ses_a", { directory: "/repo" }), historyEntry("ses_b", { directory: "/repo/worktree",
+    associations: [{ ...historySpace, associatedAt: 1000 }] })]);
+  state.shared["space-agents.history.view"] = "folder";
+  const output = text(render(view));
+  assert.ok(output.includes("local · repo"));
+  assert.ok(output.includes("local · repo/worktree"));
+});
 test("Space changes replace history without leaking the previous Space's sessions", () => {
   const view = fixture(); assert.ok(text(render(view)).includes("Saved session"));
   state.data.selectedSpace = "two";

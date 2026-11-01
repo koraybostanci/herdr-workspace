@@ -37,6 +37,28 @@ Preflight runs before any write. It fails on a missing built-in mod or asset, or
 - Uninstall removes only what is still exactly as installed. Files and settings you changed are kept and listed. Reviews, drafts and metadata under the state root are always kept.
 - The installer does not restart Herdr, agents or services.
 
+## Session History
+
+The existing `space-agents` mod supplies both sections; there is no fourth mod or new layout block. Install the updated checked release normally. To associate active conversations with saved IDs, update the existing harness integrations using the same explicit `--configure-harnesses opencode,claude` opt-in. A recognized process without session identity remains an unidentified agent entry; its title is never used to hide a saved conversation.
+
+History defaults to the helper's current Claude profile and running local OpenCode V2 service. It reads saved metadata only when the mod requests it. No account, permission or service settings change. Custom layouts that already use `space-agents` do not need structural edits; selecting or deploying a personal layout is still manual.
+
+Extra OpenCode authorities require an explicit `<state-root>/history-sources.json` mapping. The file replaces the default source list, so include default sources you want to keep:
+
+```json
+{
+  "schema": 1,
+  "owner": "herdr-session-metadata",
+  "sources": [
+    { "host": "local", "authority": "claude", "harness": "claude" },
+    { "host": "local", "authority": "local", "harness": "opencode-v2" },
+    { "host": "local", "authority": "other-service", "harness": "opencode-v2", "server": "http://127.0.0.1:4096" }
+  ]
+}
+```
+
+Use a distinct authority for a distinct service. Authentication stays with OpenCode; credentials must not appear in this file or a URL. Remote history requires an already configured trusted metadata peer and compatible helper; this feature does not configure SSH or pairing. An unavailable original context blocks Resume instead of falling back locally. Private history and association records remain after uninstall.
+
 ## Upgrade and removal
 
 Pull the new version, run `install` again. Owned settings entries are replaced, not duplicated. Run `uninstall` to remove.

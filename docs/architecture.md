@@ -28,6 +28,12 @@ OpenCode supplies its plugin and UI runtime. `bundle.json` declares each of thes
 
 Card metadata uses a JSON store owned by the helper. The installer initialises its owner marker before starting the adapters. The metadata runtime descriptor is `<app-home>/data/space-agents/runtime.json` and points directly at the checked `herdr-session-meta.mjs` release.
 
+Session History adds `<state-root>/history/registry.json` and per-session `history-associations` records. Directories are private (`0700`), and files are `0600`. The live-binding projection remains separate; a historical record cannot satisfy an active binding proof. Native metadata inventory is cached for 60 seconds, while producer events and the 15-second fallback reconcile presence. Only a successful exact native lookup confirms deletion.
+
+`session-registry` is a pure, byte-identical helper/native model. It partitions identities by host, authority, harness and native ID after Space filtering. `history-model` is also shared byte-for-byte for ordering and grouping. The existing `space-agents` mod renders both sections from one partition; its internal controller owns asynchronous helper requests and rejects stale Space/query responses. History pages contain at most 50 rows and are bounded to 512 KiB.
+
+Discovery uses the pinned Claude SDK and the authenticated OpenCode V2 CLI/API. The helper checks that the default OpenCode service is running before requesting history. It does not start services or read OpenCode's database. Explicit trusted peers reuse the existing transport; unconfigured machines are not contacted.
+
 The former Plan subsystem is removed. Upgrades retire unchanged owned Plan mod files and its runtime descriptor, but preserve edited files and private review data. Old helper releases remain on disk; configured harness entries must be upgraded explicitly. OpenCode reloads the new plugin configuration live and disposes the old observers.
 
 ## Behaviour that must not change

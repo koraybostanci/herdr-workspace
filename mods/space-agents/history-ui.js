@@ -9,6 +9,7 @@ function age(timestamp) {
 }
 export function renderSessionHistory({ rows, groups, controller: c, compact, theme: t, knownPrograms, folded }) {
   const mode = historyViewMode(c.mode), options = [{ value: "recent", label: "Recent" }, { value: "folder", label: "By folder" }, { value: "harness", label: "By harness" }];
+  const groupLabel = g => mode === "folder" ? `${g.rows[0].session.host} · ${g.label.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || g.label}` : g.label;
   const viewMenu = Popover.new("session-history-view-options").open(c.menuOpen).anchor("top_right").track_focus(c.menuHandle)
     .on_open_change((open, cx) => { c.menuOpen = open; c.menuIndex = options.findIndex(o => o.value === mode); cx.notify(); })
     .trigger(Button.new("session-history-view-trigger").h(24).px(5).rounded(4).cursor_pointer().text_color(t.muted).hover(el => el.bg(t.hover))
@@ -47,7 +48,7 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
   const count = c.page?.hasMore ? Math.max(c.page.total, rows.length) : rows.length;
   return v_flex().id("session-history").w_full().min_w(0).flex_none().border_t(1).border_color(t.border).pb(8)
     .when(!compact, el => el.child(h_flex().h(42).px(14).gap(6).items_center()
-      .child(Button.new("session-history-toggle").h(28).flex_1().min_w(0).gap(6).items_center().cursor_pointer().text_color(t.foreground)
+      .child(Button.new("session-history-toggle").h(28).flex_1().min_w(0).gap(6).items_center().justify_start().cursor_pointer().text_color(t.foreground)
         .accessibility_label(folded ? "Expand Session History" : "Collapse Session History").on_click((_e, cx) => c.toggle("history", cx))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(t.muted))
         .child(div().text_size(13).font_medium().truncate().child("Session History")))
@@ -68,8 +69,8 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
         if (key === "enter" || key === "space") c.resume(rows[index], cx);
         else if (key === "up" || key === "down") c.selectedKey = rows[(index + (key === "down" ? 1 : rows.length - 1)) % rows.length].key;
         else return; cx.stop_propagation(); cx.notify();
-      }).children(groups.map(g => v_flex().id(`session-history-group-${g.key}`).w_full().min_w(0).flex_none().gap(2)
-        .when(!compact, el => el.child(div().px(8).pt(10).pb(3).text_size(11).font_medium().text_color(t.muted).truncate().tooltip(g.label).child(g.label)))
+      }).children(groups.map(g => v_flex().id(`session-history-group-${g.key}`).w_full().min_w(0).flex_none().gap(2).role("group").accessibility_label(`${g.rows[0].session.host} · ${g.label}`)
+        .when(!compact, el => el.child(div().px(8).pt(10).pb(3).text_size(11).font_medium().text_color(t.muted).truncate().tooltip(`${g.rows[0].session.host} · ${g.label}`).child(groupLabel(g))))
         .children(g.rows.map(row))))))
     .when(!folded && !compact && Boolean(c.page?.hasMore), el => el.child(Button.new("session-history-more").h(30).mx(14).text_size(12).text_color(t.accent)
       .cursor_pointer().on_click((_e, cx) => { if (!c.loading) c.refresh(cx, true); }).child(c.loading ? "Loading…" : "Load more")));

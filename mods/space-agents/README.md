@@ -63,6 +63,30 @@ Unbound agents discover repository identity independently of PRs, so clones and
 worktrees still group together when they have no open PR. Unpaired SSH/remote-server
 panes do not authorize local filesystem probes from their reported paths.
 
+## Session History
+
+Session History sits below Agents in the same scrollable sidebar. Each section folds independently. Both use the selected Space as their outer filter; there is no All workspaces option. Every visible session keeps its harness icon, even in the narrow sidebar.
+
+- **Recent**: newest native update first, under Today, Yesterday and Older.
+- **By folder**: separate full directory/machine groups, including separate worktrees.
+- **By harness**: Claude Code and OpenCode, newest first within each group.
+
+The History view is remembered independently of the Agents view. Search matches titles and paths inside the selected Space. Load more reveals another bounded page. Incomplete discovery shows a warning and a known-count indicator rather than claiming the list is complete.
+
+The section boundary is presence, not activity:
+
+| Condition | Section |
+| --- | --- |
+| Open in Herdr, including idle, done, working, blocked or no status | Agents |
+| Saved with no open Herdr binding | Session History |
+| Connection unavailable | Last confirmed section, with a warning |
+
+Verified Space associations win over folder discovery. Conversations created outside Herdr match the exact directory and machine. A single conversation with several bindings has one row; closing one binding does not close the others. Session switches and last-binding exits move the identity between sections. External activity can remain unknown.
+
+Click a History row or its Resume button, or focus the History list and use Up/Down then Enter/Space. The helper rechecks the exact native ID, original folder and harness before preparing a launch. Already-open sessions are focused. Opening remains in History until the new binding is confirmed; repeated activation while Opening does not create another tab. Failed lookup never creates an empty replacement conversation. A failure remains on the row with a reason and Retry.
+
+History metadata is private local state. Native titles can contain private content. No transcript bodies are copied and no sessions are automatically renamed, archived, deleted or forked. Uninstall preserves the catalog. See `docs/installation.md` for integration opt-in and explicit source mappings.
+
 ## GitHub PR discovery
 
 - For unbound cards, runs `gh pr list --head <branch> --state open --limit 1 --json number,state,url,title,headRefName,headRepository,headRepositoryOwner`

@@ -21,6 +21,15 @@ Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any 
 
 The remaining metadata audit items from the original development are not part of this package, and this package does not claim they are fixed. Cards only reflect what the adapters observe.
 
+- Saved history supports root conversations from Claude Code and OpenCode V2. Other live harnesses retain their agent cards but do not gain native history adapters here.
+- Exact live/history reconciliation needs a verified native session identity. Without the opt-in harness integration, program recognition alone cannot prove which saved conversation is open. The agent entry exposes that limitation rather than guessing from a title or folder.
+- History means not open in Herdr. An external idle client can still have the conversation open; activity outside Herdr may be unknown.
+- Native inventory can lag by up to its 60-second cache. Space associations captured at bind time keep short-lived sessions discoverable while availability is checked. Missing native timestamps are shown as unavailable, not fabricated.
+- External history matches exact host/directory identities. A renamed/deleted Space or moved folder may leave sessions unmapped. There is no global history view, recursive-folder matching or inferred worktree family.
+- Claude discovery uses the helper's configuration profile. Alternate Claude profiles are not automatically enumerated. OpenCode services must be explicitly mapped to their authority when they are not the default local service.
+- Remote Resume requires the matching configured remote Space and helper. A remotely executing conversation in a local SSH pane is not silently relaunched in a local shell.
+- `herdr-app check` validates initial loading, not all populated rows or mouse behaviour. Rendered and interaction checks require a native window; no automatic live installation is part of this change.
+
 ## Licensing
 
 The three mods derive from default Herdr mods. `THIRD_PARTY.md` lists an open item: confirm the Herdr license terms for derived code before this repository leaves private use. The repository's own `LICENSE` grants no rights yet.
