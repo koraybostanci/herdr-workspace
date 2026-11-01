@@ -6,18 +6,14 @@ Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any 
 
 ## Native interface
 
-- `herdr-app check` passes for all four mods. It loads a mod once and reports errors. It does not click, type or compare pixels.
-- Mouse, keyboard and visual behaviour (the dropdown, right-click, reorder, the Plan panel) were developed against the live app but are not covered by an automated test in this repository. Check them yourself after selecting the layout.
-- **Formatted-text selection.** In Herdr 0.1.9 the vendored rich-text painter draws text before the selection highlight, so selected text can look grey. This is not fixed here. The Plan panel's Source/Formatted toggle avoids it. Upstream fix: https://github.com/longbridge/gpui-kit/pull/3439. Rebuilding or relaunching the app is outside this bundle.
+- `herdr-app check` passes for all three mods. It loads a mod once and reports errors. It does not click, type or compare pixels.
+- Mouse, keyboard and visual behaviour (the dropdown, right-click and reorder) were developed against the live app but are not covered by an automated test in this repository. Check them yourself after selecting the layout.
 
 ## Behaviour that is deliberately limited
 
 - **Naming is observe-only.** The helper records titles but does not rename sessions. No title-sync service is included or installed.
-- **Review delivery is copy-only.** Sending a review to an agent needs a delivery check for your exact installation. None ships, so Plan copies the review for you to paste.
 - No remote pairing, SSH setup, model configuration or service restart.
-- Plan shows one document per selected session. The older multi-document picker was removed on purpose. Saved comments and other document associations are kept.
-- **Markdown opening is read-only.** Open Markdown opens a source pane in the agent's existing tab, not a writable editor or external application. It requires a live, verified owning session and a splittable model pane.
-- **Tasks needs structural evidence.** Phase/task headings use `Phase N`/`Task N`, or Markdown checklists. Arbitrary prose is not parsed into work. Agent progress requires successful task-tool observations; unsupported tools are not guessed. A snapshot without an exact plan path/revision stays Unassigned, even if a title looks similar. Native OpenCode task-list APIs are not assumed.
+- The Plan/Tasks panel and review integration are removed. Saved reviews are retained, but this package no longer reads or edits them. OpenCode reloads plugin configuration live; use `/reload` if an old plugin remains loaded after upgrading.
 - Automated native-mod tests exercise event handlers through a boundary fixture. `herdr-app check` verifies loading, not layout, pixels, or pointer behavior; those still need live inspection.
 - Repository detection resolves SCP-style SSH aliases with `ssh -G` on the checkout's execution host and accepts them only when the configured hostname is `github.com`. GitHub authentication is unchanged: an inherited `GH_TOKEN` still takes precedence over the CLI's saved accounts, so an account that cannot access a private repository cannot supply its verified PR badge.
 
@@ -27,4 +23,4 @@ The remaining metadata audit items from the original development are not part of
 
 ## Licensing
 
-The four mods derive from default Herdr mods. `THIRD_PARTY.md` lists an open item: confirm the Herdr license terms for derived code before this repository leaves private use. The repository's own `LICENSE` grants no rights yet.
+The three mods derive from default Herdr mods. `THIRD_PARTY.md` lists an open item: confirm the Herdr license terms for derived code before this repository leaves private use. The repository's own `LICENSE` grants no rights yet.

@@ -2,7 +2,7 @@
 
 ## Herdr default mods (derived)
 
-`mods/compact-spaces`, `mods/space-agents`, `mods/session-tabs` and `mods/plan`
+`mods/compact-spaces`, `mods/space-agents` and `mods/session-tabs`
 are owned clones of, or additions to, the default mods shipped with Herdr 0.1.9
 (each `mod.json` records `cloned_from`). Herdr supplies the `herdr`, `gpui-kit`
 and `gpui-base` runtime modules at run time; they are not copied here.
@@ -13,8 +13,7 @@ distributed. This bundle does not include Herdr binaries or other Herdr mods.
 
 ## Icons
 
-The two bundled SVG icons (`mods/plan/plan.svg`,
-`mods/space-agents/pull-request.svg`) are Lucide-style glyphs. Lucide is ISC
+The bundled SVG icon (`mods/space-agents/pull-request.svg`) is a Lucide-style glyph. Lucide is ISC
 licensed, with MIT-licensed Feather-derived icons (https://lucide.dev).
 
 > ISC License. Copyright (c) for portions of Lucide are held by Cole Bemis

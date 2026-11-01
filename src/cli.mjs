@@ -78,7 +78,7 @@ export async function runCli(argv, { run = defaultRun, node = process.execPath, 
       const result = await uninstall(journal);
       say(`uninstalled: ${result.removed.length} item(s) removed`);
       for (const k of result.kept) say(`kept (${k.reason}): ${rel(k.path, home)}`);
-      say(`kept private review data under ${rel(paths.stateRoot, home)}`);
+      say(`kept private metadata and any legacy review data under ${rel(paths.stateRoot, home)}`);
       return 0;
     }
 
@@ -90,7 +90,7 @@ export async function runCli(argv, { run = defaultRun, node = process.execPath, 
       for (const w of pre.warnings) say(`warn ${w.message}`);
       line(journal?.phase === "installed", journal ? `install record: ${journal.phase}` : "no install record");
       if (journal?.phase === "installed") {
-        const descriptor = JSON.parse((await readBytes(join(paths.appHome, "data/session-plans/runtime.json")))?.toString("utf8") ?? "null");
+        const descriptor = JSON.parse((await readBytes(join(paths.appHome, "data/space-agents/runtime.json")))?.toString("utf8") ?? "null");
         line(descriptor?.owner === "herdr-session-metadata" && descriptor.helperPath?.startsWith(join(journal.roots.releaseDir, "bin") + "/"), "runtime descriptor points at the installed release");
         const bad = [];
         for (const step of journal.steps.filter(x => x.kind === "file")) {
@@ -123,7 +123,8 @@ export async function runCli(argv, { run = defaultRun, node = process.execPath, 
     if (!pre.ok) { for (const e of pre.errors) stderr(`${e.message}\n`); stderr("preflight failed; nothing was written\n"); return 1; }
     const plan = await planInstall({ bundle, sourceRoot, ...paths, node, harnesses, configureHarnesses: o.configure, adopt: o.adopt });
     for (const w of pre.warnings) say(`warn ${w.message}`);
-    for (const b of plan.blockers) stderr(`blocked: ${b.rule}${b.path ? " " + rel(b.path, home) : ""}\n`);
+    for (const w of plan.warnings) say(`warn ${w.rule}: ${rel(w.path, home)}${w.harness ? ` (re-run with --configure-harnesses ${w.harness} to update it)` : ""}`);
+    for (const b of plan.blockers) stderr(`blocked: ${b.rule}${b.path ? " " + rel(b.path, home) : ""}${b.harness ? ` (include --configure-harnesses ${b.harness})` : ""}\n`);
 
     if (o.command === "plan") {
       const counts = {};

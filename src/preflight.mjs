@@ -18,7 +18,7 @@ export async function preflight({ bundle, appHome, node, run }) {
   const need = Number(/(\d+)/.exec(bundle.requires.node)?.[1] ?? 0);
 
   if (major(node?.version) < need) errors.push({ rule: "node-version", message: `Node ${bundle.requires.node} is required; found ${node?.version ?? "unknown"}.` });
-  else {
+  else if (bundle.requires.nodeBuiltins.length) {
     const probe = await tryRun(run, node.path, ["-e", bundle.requires.nodeBuiltins.map(m => `require(${JSON.stringify(m)})`).join(";")]);
     if (!probe || probe.code !== 0) errors.push({ rule: "node-sqlite", message: `This Node cannot load ${bundle.requires.nodeBuiltins.join(", ")}.` });
   }

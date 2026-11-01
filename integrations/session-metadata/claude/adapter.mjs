@@ -21,9 +21,6 @@ export function createClaudeSessionAccess(sdk, lookupDir, liveTitle) {
 const events = new Set(["SessionStart", "UserPromptSubmit", "PostToolUse", "CwdChanged", "Stop", "SessionEnd"]);
 export async function handleClaudeHook(input, deps) {
   if (!input || input.agent_id || !events.has(input.hook_event_name) || typeof input.session_id !== "string") return {};
-  if (deps.plans) {
-    try { await deps.plans.observe(input); } catch {} // Plan availability never blocks the normal hook.
-  }
   const pairingPrompt = input.hook_event_name === "UserPromptSubmit" && /^herdr-pair(?:\s|$)/.test(input.prompt ?? "");
   const startupToken = input.hook_event_name === "SessionStart" && deps.env.HERDR_METADATA_PAIR_TOKEN;
   if (pairingPrompt || startupToken) {

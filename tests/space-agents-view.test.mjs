@@ -54,7 +54,7 @@ test("populated cards render without creating native resources during render", (
 test("metadata collection uses the installed checked release rather than the obsolete unversioned reader", async () => {
   const view=fixture();state.tasks=[];const commands=[];
   const release="/fixture/herdr/integrations/session-metadata/releases/11111111-1111-4111-8111-111111111111";
-  state.files={"/fixture/herdr/data/session-plans/runtime.json":JSON.stringify({schema:1,owner:"herdr-session-metadata",node:"/verified/node",helperPath:release+"/bin/herdr-plan.mjs",stateRoot:"/fixture/state",buildHash:"a".repeat(64)})};
+  state.files={"/fixture/herdr/data/space-agents/runtime.json":JSON.stringify({schema:1,owner:"herdr-session-metadata",node:"/verified/node",helperPath:release+"/bin/herdr-session-meta.mjs",stateRoot:"/fixture/state",buildHash:"a".repeat(64)})};
   state.execute=async(command,args)=>{commands.push({command,args});return {code:0,stdout:"{}",stderr:""};};
   try {
     view.refreshMetadata(context());await Promise.all(state.tasks.splice(0).map(task=>task()));

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { loadHerdrMod } from './helpers/load-herdr-mod.mjs';
 import { state,context,render,text,find } from './helpers/herdr-runtime.mjs';
 import { agentCards } from '../mods/space-agents/model.js';
@@ -46,6 +47,15 @@ test('compact layout changes only the Spaces mod and its fixed height/minimum',(
   const after=model.compactSpacesLayout(before);
   assert.deepEqual(after,{...before,children:[{...before.children[0],content:{mod:'compact-spaces'},size:{px:44},min:44},...before.children.slice(1)]});
   assert.equal(before.children[0].size.px,180);
+});
+test('installed Spaces row has fixed bounds and a non-draggable divider while Agents stays flexible',async()=>{
+  const layout=JSON.parse(await readFile(new URL('../layouts/herdr-workspace.json',import.meta.url),'utf8'));
+  const sidebar=layout.children.find(node=>node.id==='sidebar');
+  const lists=sidebar.children.find(node=>node.id==='sidebar-lists');
+  const spaces=lists.children.find(node=>node.id==='spaces'),agents=lists.children.find(node=>node.id==='agents');
+  assert.equal(lists.resizable,false);
+  assert.deepEqual(spaces.size,{px:44});assert.equal(spaces.min,44);assert.equal(spaces.max,44);
+  assert.deepEqual(agents.size,{weight:1});
 });
 
 async function widget(){

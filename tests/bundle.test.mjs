@@ -16,7 +16,6 @@ test("shipped bundle validates", async () => {
 test("runtime_import_and_asset_closure_complete", async t => {
   for (const [omit, rule] of [
     ["integrations/session-metadata/src/scope.mjs", "missing-file"],
-    ["mods/plan/plan.svg", "missing-file"],
     ["mods/space-agents/pull-request.svg", "missing-file"],
   ]) {
     const root = await exportBundle(t);
@@ -34,7 +33,7 @@ test("undeclared imports and assets are reported even when the file exists", asy
   const result = await validateBundle(bundle, root);
   assert.ok(result.issues.some(i => i.rule === "unresolved-import" && i.to.endsWith("src/scope.mjs")), JSON.stringify(result.issues));
   const root2 = await exportBundle(t);
-  await writeFile(join(root2, "mods/plan/main.js"), (await readFile(join(root2, "mods/plan/main.js"), "utf8")) + '\nsvg("mods/nope/missing.svg");\nimport "left-pad";\n');
+  await writeFile(join(root2, "mods/space-agents/main.js"), (await readFile(join(root2, "mods/space-agents/main.js"), "utf8")) + '\nsvg("mods/nope/missing.svg");\nimport "left-pad";\n');
   const result2 = await validateBundle(await loadBundle(root2), root2);
   assert.ok(rules(result2).includes("undeclared-asset"));
   assert.ok(rules(result2).includes("undeclared-dependency"));
@@ -47,8 +46,8 @@ test("traversal and symlinks are refused", async t => {
   bundle.files["../outside.txt"] = "0".repeat(64);
   assert.ok(rules(await validateBundle(bundle, root)).includes("unsafe-path"));
   const root2 = await exportBundle(t);
-  await rm(join(root2, "mods/plan/plan.svg"));
-  await symlink("/etc/hosts", join(root2, "mods/plan/plan.svg"));
+  await rm(join(root2, "mods/space-agents/pull-request.svg"));
+  await symlink("/etc/hosts", join(root2, "mods/space-agents/pull-request.svg"));
   assert.ok(rules(await validateBundle(await loadBundle(root2), root2)).includes("unsafe-path"));
 });
 
@@ -69,5 +68,5 @@ test("layout_uses_only_declared_mods", async t => {
 test("owned protocol/client/model copies stay byte identical", async () => {
   const bundle = await loadBundle(repoRoot);
   for (const [a, b] of bundle.parity) assert.equal(await readFile(join(repoRoot, a), "utf8"), await readFile(join(repoRoot, b), "utf8"), `${a} == ${b}`);
-  assert.ok(bundle.parity.length >= 4);
+  assert.ok(bundle.parity.length >= 1);
 });

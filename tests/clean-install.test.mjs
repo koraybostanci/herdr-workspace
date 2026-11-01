@@ -30,9 +30,9 @@ test("no_github_auth_does_not_block_ui", async t => {
   assert.ok(result.warnings.some(w => w.includes("gh")));
 });
 
-test("installed_helper_reads_synthetic_plan", async t => {
+test("installed_helper_reads_metadata_without_plan_storage", async t => {
   const result = await run(t);
-  assert.ok(result.checks.some(c => c.name === "installed helper registers and reads a synthetic plan" && c.ok), JSON.stringify(reasons(result)));
+  assert.ok(result.checks.some(c => c.name === "installed helper reads metadata without Plan storage" && c.ok), JSON.stringify(reasons(result)));
 });
 
 test("dependency_install_has_no_live_side_effects", async t => {

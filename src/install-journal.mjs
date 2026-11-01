@@ -52,6 +52,8 @@ async function createJournal(plan, previous) {
   let counter = 0;
   const fileStep = async file => {
     const old = prevFile.get(file.dest);
+    if (file.action === "preserve") return null;
+    if (file.action === "remove") return { kind: "retire-file", dest: file.dest, beforeHash: file.beforeHash, backup: file.backup ?? null, applied: false };
     if (file.action === "unchanged") return old ? { ...old, applied: true } : null;
     const step = { kind: "file", dest: file.dest, hash: file.hash, beforeHash: file.beforeHash, mode: file.mode, backup: old?.backup ?? null, applied: false };
     if (file.action === "adopt") step.backup = await backupOf(plan, await readFile(file.dest), counter++);
@@ -128,6 +130,18 @@ export async function applyInstall(plan, { run, writeText = writeGuarded } = {})
   for (const step of journal.steps) {
     if (step.applied) continue;
     if (step.kind === "file") await progress(step, step.dest, () => applyFile(plan, step, writeText));
+    else if (step.kind === "retire-file") {
+      await progress(step, step.dest, async () => {
+        const current = hashOf(await readBytes(step.dest));
+        if (current === ABSENT || step.backup && current === step.backup.hash) return;
+        if (current !== step.beforeHash) throw new Error("config-changed-concurrently");
+        if (step.backup) {
+          const bytes = await readBytes(step.backup.path);
+          if (!bytes || hashOf(bytes) !== step.backup.hash) throw new Error("retired-backup-missing");
+          await writeText(step.dest, bytes, current);
+        } else await unlink(step.dest);
+      });
+    }
     else if (step.kind === "deps") {
       await progress(step, "dependencies", async () => {
         const result = await run("npm", ["ci", "--ignore-scripts"], { cwd: step.dir });
@@ -196,11 +210,13 @@ export async function uninstall(receipt, { writeText = writeGuarded } = {}) {
     removed.push(path);
   }
 
-  const fileSteps = journal.steps.filter(s => s.kind === "file").reverse();
+  const fileSteps = journal.steps.filter(s => s.kind === "file" || s.kind === "retire-file" && !s.applied)
+    .map(s => s.kind === "retire-file" ? { ...s, hash: s.beforeHash } : s).reverse();
   for (const step of fileSteps) {
     const bytes = await readBytes(step.dest);
     if (bytes === null) continue;
     const current = hashOf(bytes);
+    if (step.kind === "retire-file" && current === step.backup?.hash) continue;
     if (current !== step.hash) { kept.push({ path: step.dest, reason: "modified" }); continue; }
     if (step.backup) {
       const backup = await readBytes(step.backup.path);

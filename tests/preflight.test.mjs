@@ -28,13 +28,13 @@ test("missing_required_host_fails_preflight", async t => {
   assert.deepEqual(await readdir(appHome, { recursive: true }), before, "preflight must not write");
 });
 
-test("old node and missing sqlite fail", async t => {
+test("old node fails but metadata no longer requires SQLite", async t => {
   const bundle = await loadBundle(repoRoot);
   const appHome = await hostFixture(t, bundle);
   const old = await preflight({ bundle, appHome, node: { path: "/n", version: "v22.1.0" }, run: fakeRun(good) });
   assert.ok(old.errors.some(e => e.rule === "node-version"));
   const noSqlite = await preflight({ bundle, appHome, node: good.node, run: fakeRun({ ...good, node: { code: 1, stderr: "no sqlite" } }) });
-  assert.ok(noSqlite.errors.some(e => e.rule === "node-sqlite"));
+  assert.deepEqual(noSqlite.errors, []);
 });
 
 test("missing_optional_gh_warns_only", async t => {
