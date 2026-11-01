@@ -58,6 +58,11 @@ view keeps its existing repository line.
 
 The choice is saved in the owned `space-agents.view` shared setting. Both modes
 show only the selected space. Keyboard navigation follows the displayed order.
+In the grouped view, click a directory/repository heading, or focus it and press
+Enter/Space, to collapse or expand its cards. Headings keep their total agent
+count. Groups start expanded and remember their state per Space in
+`space-agents.groups`. Keyboard navigation skips collapsed cards; List view and
+the narrow icon sidebar still show all agents.
 Non-Git folders group by their actual path and execution host, not basename alone.
 Unbound agents discover repository identity independently of PRs, so clones and
 worktrees still group together when they have no open PR. Unpaired SSH/remote-server
