@@ -72,7 +72,7 @@ test("the last agent exit and Space switches retain a non-default core namespace
   state.data.selectedSpace = "one";
   assert.ok(text(render(view)).includes("Named-core history"));
 });
-test("idle and done stay in Agents, then a confirmed exit moves the same session to History", () => {
+test("idle and done stay in Agents, then a confirmed exit into a live shell moves the session only to History", async () => {
   const f = metadataFixture(), binding = { ...f.binding, terminal: "t1", lookupDir: "/repo" };
   const proof = { key: bindingKey(binding), generation: binding.generation };
   const entry = historyEntry("ses_fixture_A", { session: f.key, bindings: [{ ...binding, space: historySpace, tab: "tab1", address: "t1", pane: "p1", presence: "open", connection: "confirmed", activity: "idle" }] });
@@ -87,15 +87,43 @@ test("idle and done stay in Agents, then a confirmed exit moves the same session
     assert.ok(find(render(view), "space-agent-t1"));
     assert.equal(find(render(view), 'session-history-["local","local","opencode-v2","ses_fixture_A"]'), undefined);
   }
-  state.data.allAgents = []; state.data.allPanes = []; state.data.allTerminals = []; view.sessionView = null;
+  Object.assign(state.data.allTerminals[0], { pid: 10, argv: ["/bin/zsh"],
+    foreground: { pid: 10, name: "zsh", argv: ["/bin/zsh"] }, title: "user@host:~/repo" });
+  state.tasks = [];
+  state.execute = async command => command === "ps" ? { code: 0, stdout: "10 1 Ss /bin/zsh\n", stderr: "" }
+    : { code: 1, stdout: "", stderr: "unavailable" };
   const request = view.history.currentRequest;
   view.history.acceptPage(createHistoryView(historyRegistry([{ ...entry, bindings: [] }]), request), request);
-  assert.ok(find(render(view), 'session-history-["local","local","opencode-v2","ses_fixture_A"]'));
-  assert.deepEqual(state.order, []);
+  try {
+    render(view);
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    assert.ok(find(render(view), 'session-history-["local","local","opencode-v2","ses_fixture_A"]'));
+    assert.equal(find(render(view), "space-agent-t1"), undefined);
+    assert.deepEqual(state.order, []);
+  } finally { state.execute = null; }
 });
 test("a disconnected known agent remains visible with a warning rather than disappearing", () => {
   const f = metadataFixture(), entry = historyEntry("ses_fixture_A", { session: f.key, bindings: [{ ...f.binding, space: historySpace, tab: "tab1", address: "t1", pane: null, presence: "unknown", connection: "unavailable", activity: "idle" }] });
   assert.ok(text(render(fixture([entry]))).includes("Connection unavailable"));
+});
+
+test("a local shell cannot declare a paired remote agent closed during a disconnect", async () => {
+  const f = metadataFixture(), session = { ...f.key, host: "remote" };
+  const binding = { ...f.binding, session, mode: "paired", terminal: "t1", address: "t1", space: historySpace,
+    tab: "tab1", pane: "p1", presence: "unknown", connection: "unavailable", activity: "idle" };
+  const view = fixture([historyEntry("ses_fixture_A", { session, bindings: [binding] })]);
+  const program = { key: "opencode", name: "OpenCode", agent: true };
+  state.data.allAgents = [{ address: "t1", pane: "p1", space: "one", tab: "tab1", title: "Saved session", program, status: "idle" }];
+  state.data.allTerminals = [{ address: "t1", state: "live", created_ms: 100, pid: 10, foreground: { pid: 10, argv: ["/bin/zsh"] } }];
+  state.tasks = [];
+  state.execute = async () => ({ code: 0, stdout: "10 1 Ss /bin/zsh\n", stderr: "" });
+  try {
+    render(view);
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    const tree = render(view);
+    assert.ok(find(tree, "space-agent-t1"));
+    assert.ok(text(tree).includes("Connection unavailable"));
+  } finally { state.execute = null; }
 });
 
 test("a viewed session stays exclusively in History until a work event activates its binding", () => {

@@ -39,6 +39,12 @@ first live status report (OSC 7501), with “No status” until it reports.
 Starting a terminal alone does not make it an agent. New agent cards do **not**
 wait for the one-minute PR refresh.
 
+If a terminal returns to a shell prompt, the sidebar checks its process tree on
+that machine before removing a stale agent row. Live child processes keep the
+row visible, even with shell job control disabled. Failed checks and paired
+remote sessions retain their existing placement; a local shell is not proof
+that a remote agent stopped.
+
 ## View options
 
 The layers button beside the agent count opens **View options**:

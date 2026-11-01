@@ -167,6 +167,60 @@ test("launching Claude in a numbered tab shows a focusable card before any statu
   assert.deepEqual(state.commands, [{ name: "pane.focus", args: { pane: "p3" } }]);
 });
 
+function shellFixture(stdout = "10 1 Ss /bin/zsh\n") {
+  const view = fixture();
+  state.tasks = [];
+  state.data.allTerminals = [{ address: "t1", state: "live", created_ms: 100, pid: 10,
+    foreground: { pid: 10, name: "zsh", argv: ["/bin/zsh", "-l"] } }];
+  state.execute = async command => command === "ps" ? { code: 0, stdout, stderr: "" }
+    : { code: 1, stdout: "", stderr: "unavailable" };
+  return view;
+}
+
+test("a shell-looking row stays until a process check confirms there is no live agent child", async () => {
+  const view = shellFixture();
+  try {
+    assert.ok(find(render(view), "space-agent-t1"), "shell state alone cannot prove that the agent exited");
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    assert.equal(find(render(view), "space-agent-t1"), undefined);
+    assert.deepEqual(state.order, []);
+  } finally { state.execute = null; }
+});
+
+test("an interactive shell with job control disabled cannot hide a live child agent", async () => {
+  const view = shellFixture("10 1 Ss /bin/zsh\n20 10 S opencode\n");
+  try {
+    assert.ok(find(render(view), "space-agent-t1"));
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    assert.ok(find(render(view), "space-agent-t1"));
+    assert.deepEqual(state.order, ["t1"]);
+  } finally { state.execute = null; }
+});
+
+test("stale program detection cannot recreate a card after verified process closure", async () => {
+  const view = shellFixture();
+  state.data.allAgents = [];
+  Object.assign(state.data.allPanes[0], { tab: "tab-1", program, title: "Old session", status: "idle" });
+  try {
+    render(view);
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    assert.equal(find(render(view), "space-agent-t1"), undefined);
+  } finally { state.execute = null; }
+});
+
+test("failed, malformed and replaced-root process snapshots do not remove an agent", async () => {
+  for (const response of [{ code: 1, stdout: "", stderr: "offline" }, { code: 0, stdout: "bad snapshot", stderr: "" },
+    { code: 0, stdout: "20 1 S opencode\n", stderr: "" }, { code: 0, stdout: "10 1 S opencode\n", stderr: "" }]) {
+    const view = shellFixture();
+    state.execute = async () => response;
+    try {
+      render(view);
+      await Promise.all(state.tasks.splice(0).map(task => task()));
+      assert.ok(find(render(view), "space-agent-t1"));
+    } finally { state.execute = null; }
+  }
+});
+
 test("compact cards retain status descriptions without repeating harness and idle labels", () => {
   const view = fixture();
   state.data.allAgents[0].status = "idle";
