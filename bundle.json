@@ -138,6 +138,10 @@
   },
   "parity": [
     [
+      "integrations/session-metadata/src/session-registry.mjs",
+      "mods/space-agents/session-registry.js"
+    ],
+    [
       "integrations/session-metadata/src/github.mjs",
       "mods/space-agents/github.js"
     ]
@@ -157,6 +161,7 @@
     "integrations/session-metadata/src/naming.mjs": "8c3c5c20a524069a663d1454e6571543f53b0c6467731d6a24b0d4500eb9ed7d",
     "integrations/session-metadata/src/pending.mjs": "9944593584b93da79733f5baeb167dc7e406a3648a46b7d36da7b2b0d7b85b12",
     "integrations/session-metadata/src/scope.mjs": "6f21e53d01e3612eb3d30d9e39ef934252badba4ece0f2721f9535dabe00891e",
+    "integrations/session-metadata/src/session-registry.mjs": "c103baa3bc6239e4f23c8212737226e83a9c560a9553d7508fd5713b1dd90a87",
     "integrations/session-metadata/src/store.mjs": "874f418a0575fa48563d04ee2a1e959f74affa1f839c27a0356dd4c0ec987b0d",
     "integrations/session-metadata/src/transport.mjs": "ebfb602055d210775c88c2b7f49bf82daacc1f044245b9d2a851da692f856636",
     "integrations/session-metadata/src/work-context.mjs": "6ba49b6e0e65234930a3d409f751d7bc7f91a3aa5dcb04434f244bf0bf685c55",
@@ -176,6 +181,7 @@
     "mods/space-agents/mod.json": "b8c5b81a3b7e960a6d699eef62e08e914bfd8f9bab29a8fbb0adc129c8060432",
     "mods/space-agents/model.js": "195d9aa10b5378f6b337bd6d16949bed3e7adb7cd9fa0b6025a59bd7a87d3984",
     "mods/space-agents/pull-request.svg": "d14295c0fb4e3664ace1d9d33556ff62fb317fb07c53eacde2d8303e05b7b067",
-    "mods/space-agents/session-metadata.js": "1410b4cdc243199482d09adc5b2dfc4c0d4bfc266f19fee49ffc684c6df21dfe"
+    "mods/space-agents/session-metadata.js": "1410b4cdc243199482d09adc5b2dfc4c0d4bfc266f19fee49ffc684c6df21dfe",
+    "mods/space-agents/session-registry.js": "c103baa3bc6239e4f23c8212737226e83a9c560a9553d7508fd5713b1dd90a87"
   }
 }
