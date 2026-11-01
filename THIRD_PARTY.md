@@ -2,7 +2,7 @@
 
 ## Herdr default mods (derived)
 
-`mods/compact-spaces`, `mods/space-agents` and `mods/session-tabs`
+`mods/compact-spaces`, `mods/space-agents`, `mods/session-tabs` and `mods/workspace-header`
 are owned clones of, or additions to, the default mods shipped with Herdr 0.1.9
 (each `mod.json` records `cloned_from`). Herdr supplies the `herdr`, `gpui-kit`
 and `gpui-base` runtime modules at run time; they are not copied here.

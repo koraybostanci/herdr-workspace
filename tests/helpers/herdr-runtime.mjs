@@ -42,7 +42,7 @@ export const theme = () => new Proxy({}, { get: () => "#aabbcc" });
 export const layout = () => state.layout ?? ({ id: "sidebar", size: { px: state.width ?? 320 }, children: [{ id: "agents", content: { mod: "space-agents" } }] });
 export const shared = key => key === "layout" ? "herdr-workspace" : state.shared?.[key] ?? null;
 export const setShared = (key, value) => { state.shared ??= {}; state.shared[key] = value; };
-export const window = () => ({ platform: "macos", active:true });
+export const window = () => ({ platform: "macos", active:true, titlebar:'none', fullscreen:false, ...state.window });
 export const settings = () => ({zoom:1,font_family:'monospace'});
 export const setAgentOrder = addresses => { state.order = addresses; };
 export const run = (name, args) => { state.commands.push({ name, args }); };

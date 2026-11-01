@@ -6,7 +6,7 @@ Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any 
 
 ## Native interface
 
-- `herdr-app check` passes for all three mods. It loads a mod once and reports errors. It does not click, type or compare pixels.
+- `herdr-app check` passes for all four mods. It loads a mod once and reports errors. It does not click, type or compare pixels.
 - Mouse, keyboard and visual behaviour (the dropdown, right-click and reorder) were developed against the live app but are not covered by an automated test in this repository. Check them yourself after selecting the layout.
 
 ## Behaviour that is deliberately limited
@@ -33,4 +33,4 @@ The remaining metadata audit items from the original development are not part of
 
 ## Licensing
 
-The three mods derive from default Herdr mods. `THIRD_PARTY.md` lists an open item: confirm the Herdr license terms for derived code before this repository leaves private use. The repository's own `LICENSE` grants no rights yet.
+The four mods derive from default Herdr mods. `THIRD_PARTY.md` lists an open item: confirm the Herdr license terms for derived code before this repository leaves private use. The repository's own `LICENSE` grants no rights yet.
