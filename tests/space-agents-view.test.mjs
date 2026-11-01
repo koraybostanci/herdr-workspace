@@ -32,6 +32,18 @@ function fixture() {
   return view;
 }
 
+function directoryGroup(node, name) {
+  if (node?.attributes?.role?.[0] === "group" && node.attributes.accessibility_label?.[0]?.startsWith(`${name}, `)) return node;
+  for (const child of node?.nodes ?? []) {
+    const group = directoryGroup(child, name);
+    if (group) return group;
+  }
+}
+
+function directoryToggle(tree, name) {
+  return directoryGroup(tree, name)?.nodes.find(node => ["Expand", "Collapse"].some(action => node?.attributes?.accessibility_label?.[0] === `${action} ${name}`));
+}
+
 test("populated cards render without creating native resources during render", () => {
   const tree = render(fixture());
   const output = text(tree);
@@ -298,8 +310,8 @@ test("grouped rendering uses alphabetical repo headings, branch details and matc
   await view.prs.refresh(agentCards(state.data).find(c => c.address === "t3"), async () => ({ code: 0, stdout: JSON.stringify([{ number: 6029, state: "OPEN", url: "https://github.com/team/alpha/pull/6029" }]), stderr: "" }));
   const tree = render(view);
   assert.deepEqual(state.order, ["t3", "t1"]);
-  assert.ok(text(find(tree, "space-agent-group-0")).includes("alpha"));
-  assert.ok(text(find(tree, "space-agent-group-1")).includes("zebra"));
+  assert.ok(text(find(tree, "space-agent-list-one").nodes[0]).includes("alpha"));
+  assert.ok(text(find(tree, "space-agent-list-one").nodes[1]).includes("zebra"));
   assert.ok(text(find(tree, "space-agent-t3")).includes("fix/alpha"));
   const tooltips = node => typeof node === "object" && node ? [node.attributes?.tooltip?.[0], ...node.nodes.flatMap(tooltips)].filter(Boolean) : [];
   assert.ok(tooltips(find(tree, "space-agent-t3")).some(hint => hint.includes("/clone/alpha")), "grouped cards retain their physical checkout path in a tooltip");
@@ -322,8 +334,8 @@ test("unbound agents in separate checkouts group together even without any PR", 
     stdout: command === "gh" ? JSON.stringify({ url: "https://github.com/team/repo-a", parent: null })
       : args.includes("--show-toplevel") ? options.cwd : args.includes("--show-prefix") ? "" : args[0] === "config" ? "https://github.com/team/repo-a.git" : "main" }));
   const tree = render(view);
-  assert.ok(text(find(tree, "space-agent-group-0")).includes("repo-a"));
-  assert.equal(find(tree, "space-agent-group-1"), undefined);
+  assert.ok(text(directoryGroup(tree, "repo-a")).includes("repo-a"));
+  assert.equal(find(tree, "space-agent-list-one").nodes.length, 1);
   assert.ok(!find(tree, "space-agent-pr-t1"));
   assert.ok(!find(tree, "space-agent-pr-t3"));
 });
@@ -355,4 +367,165 @@ test("grouped checkout indicators distinguish checkout type from main or feature
     state.shared["space-agents.view"] = "list";
     assert.equal(find(render(view), "space-agent-checkout-t1"), undefined, "flat view keeps its current repository line");
   }
+});
+
+function groupedFixture() {
+  const view = fixture();
+  state.shared["space-agents.view"] = "repository";
+  state.data.allAgents.push({ ...state.data.allAgents[0], address: "t3", pane: "p3", title: "Alpha task", focused: false },
+    { ...state.data.allAgents[0], address: "t4", pane: "p4", title: "Another login task", focused: false });
+  state.data.allPanes.push({ pane: "p3", terminal: "t3", cwd: "/repos/alpha", branch: "main" },
+    { pane: "p4", terminal: "t4", cwd: "/repos/login", branch: "another-login" });
+  return view;
+}
+
+test("directory headings collapse only their own cards and keep their name and total count", () => {
+  const view = groupedFixture();
+  let tree = render(view);
+  const toggle = directoryToggle(tree, "login");
+  assert.ok(toggle, "each directory heading needs a collapse control");
+  assert.deepEqual(toggle.attributes.accessibility_label, ["Collapse login"]);
+  assert.ok(find(tree, "space-agent-t1"));
+  assert.ok(find(tree, "space-agent-t4"));
+  toggle.attributes.on_click[0]({}, context());
+  tree = render(view);
+  assert.equal(find(tree, "space-agent-t1"), undefined);
+  assert.equal(find(tree, "space-agent-t4"), undefined);
+  assert.ok(find(tree, "space-agent-t3"));
+  assert.deepEqual(text(directoryToggle(tree, "login")), ["login", "2"]);
+  assert.deepEqual(directoryToggle(tree, "login").attributes.accessibility_label, ["Expand login"]);
+  assert.deepEqual(state.commands, [], "collapsing must not focus or close an agent");
+  directoryToggle(tree, "login").attributes.on_click[0]({}, context());
+  tree = render(view);
+  assert.ok(find(tree, "space-agent-t1"));
+  assert.ok(find(tree, "space-agent-t4"));
+});
+
+test("collapsed directory state survives new view instances and alphabetical group insertion", () => {
+  const view = groupedFixture();
+  const toggle = directoryToggle(render(view), "login");
+  assert.ok(toggle, "each directory heading needs a collapse control");
+  toggle.attributes.on_click[0]({}, context());
+  state.data.allAgents.push({ ...state.data.allAgents[0], address: "t5", pane: "p5", title: "Aardvark task", focused: false });
+  state.data.allPanes.push({ pane: "p5", terminal: "t5", cwd: "/repos/aardvark", branch: "main" });
+  const reopened = new SpaceAgents(); reopened.init({}, context());
+  const tree = render(reopened);
+  assert.ok(find(tree, "space-agent-t5"));
+  assert.ok(find(tree, "space-agent-t3"));
+  assert.equal(find(tree, "space-agent-t1"), undefined);
+  assert.equal(find(tree, "space-agent-t4"), undefined);
+  assert.deepEqual(directoryToggle(tree, "login").attributes.accessibility_label, ["Expand login"]);
+});
+
+test("directory controls retain their native focus identity across group insertion and removal", () => {
+  const view = groupedFixture();
+  let tree = render(view);
+  const groupId = directoryGroup(tree, "login").attributes.id[0];
+  const toggleId = directoryToggle(tree, "login").attributes.id[0];
+  state.data.allAgents.push({ ...state.data.allAgents[0], address: "t5", pane: "p5", title: "Aardvark task", focused: false });
+  state.data.allPanes.push({ pane: "p5", terminal: "t5", cwd: "/repos/aardvark", branch: "main" });
+  tree = render(view);
+  assert.equal(directoryGroup(tree, "login").attributes.id[0], groupId);
+  assert.equal(directoryToggle(tree, "login").attributes.id[0], toggleId);
+  find(tree, toggleId).attributes.on_click[0]({}, context());
+  tree = render(view);
+  assert.equal(find(tree, "space-agent-t1"), undefined);
+  assert.ok(find(tree, "space-agent-t5"));
+  assert.ok(find(tree, "space-agent-t3"));
+  state.data.allAgents = state.data.allAgents.filter(agent => agent.address !== "t5");
+  state.data.allPanes = state.data.allPanes.filter(pane => pane.pane !== "p5");
+  tree = render(view);
+  assert.equal(directoryGroup(tree, "login").attributes.id[0], groupId);
+  assert.equal(directoryToggle(tree, "login").attributes.id[0], toggleId);
+  assert.equal(find(tree, "space-agent-t1"), undefined);
+  state.data.allPanes.push({ pane: "p2", terminal: "t2", cwd: "/repos/login", branch: "main" });
+  state.data.selectedSpace = "two";
+  tree = render(view);
+  assert.notEqual(directoryGroup(tree, "login").attributes.id[0], groupId);
+  assert.notEqual(directoryToggle(tree, "login").attributes.id[0], toggleId);
+});
+
+test("a full Enter or Space press toggles the directory once without activating an agent", () => {
+  const view = groupedFixture();
+  const toggle = directoryToggle(render(view), "login");
+  assert.ok(toggle, "each directory heading needs a collapse control");
+  assert.ok(toggle.attributes.on_key_down, "directory toggles need keyboard activation");
+  let stopped = 0;
+  const cx = { ...context(), stop_propagation() { stopped++; } };
+  toggle.attributes.on_key_down[0]({ keystroke: "enter" }, cx);
+  assert.ok(find(render(view), "space-agent-t1"), "key-down must leave activation to the native Button click on release");
+  // GPUI synthesizes the focused Button's click on Enter/Space key-up.
+  toggle.attributes.on_key_up?.[0]({ keystroke: "enter" }, cx);
+  toggle.attributes.on_click[0]({}, cx);
+  let tree = render(view);
+  assert.equal(find(tree, "space-agent-t1"), undefined);
+  const expand = directoryToggle(tree, "login");
+  expand.attributes.on_key_down[0]({ keystroke: "space" }, cx);
+  assert.equal(find(render(view), "space-agent-t1"), undefined);
+  expand.attributes.on_key_up?.[0]({ keystroke: "space" }, cx);
+  expand.attributes.on_click[0]({}, cx);
+  tree = render(view);
+  assert.ok(find(tree, "space-agent-t1"));
+  assert.equal(stopped, 4);
+  assert.deepEqual(state.commands, []);
+});
+
+test("the same directory has independent collapse state in each Space", () => {
+  const view = groupedFixture();
+  state.data.allPanes.push({ pane: "p2", terminal: "t2", cwd: "/repos/login", branch: "main" });
+  const toggle = directoryToggle(render(view), "login");
+  assert.ok(toggle, "each directory heading needs a collapse control");
+  toggle.attributes.on_click[0]({}, context());
+  state.data.selectedSpace = "two";
+  let tree = render(view);
+  assert.ok(find(tree, "space-agent-t2"));
+  directoryToggle(tree, "login").attributes.on_click[0]({}, context());
+  assert.equal(find(render(view), "space-agent-t2"), undefined);
+  state.data.selectedSpace = "one";
+  tree = render(view);
+  assert.equal(find(tree, "space-agent-t1"), undefined);
+  directoryToggle(tree, "login").attributes.on_click[0]({}, context());
+  assert.ok(find(render(view), "space-agent-t1"));
+  state.data.selectedSpace = "two";
+  assert.equal(find(render(view), "space-agent-t2"), undefined);
+});
+
+test("agent keyboard navigation skips collapsed cards and does nothing when all groups are collapsed", () => {
+  const view = groupedFixture();
+  const toggle = directoryToggle(render(view), "login");
+  assert.ok(toggle, "each directory heading needs a collapse control");
+  toggle.attributes.on_click[0]({}, context());
+  let tree = render(view), list = find(tree, "space-agent-list-one");
+  assert.deepEqual(state.order, ["t3"]);
+  list.attributes.on_key_down[0]({ keystroke: "down" }, context());
+  list.attributes.on_key_down[0]({ keystroke: "enter" }, context());
+  assert.deepEqual(state.commands, [{ name: "pane.focus", args: { pane: "p3" } }]);
+  directoryToggle(tree, "alpha").attributes.on_click[0]({}, context());
+  tree = render(view); list = find(tree, "space-agent-list-one");
+  assert.deepEqual(state.order, []);
+  list.attributes.on_key_down[0]({ keystroke: "down" }, context());
+  list.attributes.on_key_down[0]({ keystroke: "space" }, context());
+  assert.equal(state.commands.length, 1);
+  assert.ok(!text(tree).includes("No agents in this space"), "collapsed agents still exist");
+});
+
+test("collapsed directories do not hide agents in List view or the compact sidebar", () => {
+  const view = groupedFixture();
+  const toggle = directoryToggle(render(view), "login");
+  assert.ok(toggle, "each directory heading needs a collapse control");
+  toggle.attributes.on_click[0]({}, context());
+  state.shared["space-agents.view"] = "list";
+  let tree = render(view);
+  assert.ok(find(tree, "space-agent-t1"));
+  assert.ok(find(tree, "space-agent-t4"));
+  assert.equal(directoryToggle(tree, "login"), undefined);
+  state.shared["space-agents.view"] = "repository";
+  state.width = 76;
+  tree = render(view);
+  assert.ok(find(tree, "space-agent-t1"));
+  assert.ok(find(tree, "space-agent-t4"));
+  assert.equal(directoryToggle(tree, "login"), undefined);
+  assert.deepEqual(state.order, ["t3", "t1", "t4"]);
+  state.width = 320;
+  assert.equal(find(render(view), "space-agent-t1"), undefined);
 });

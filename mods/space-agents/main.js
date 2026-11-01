@@ -234,8 +234,12 @@ export default class SpaceAgents extends View {
     }
     if (space && !this.history.currentRequest) this.history.refresh(cx);
     const compact = (sidebar(layout())?.size?.px ?? 320) < 160;
-    if (!cards.some(c => c.address === this.keyboardAddress)) this.keyboardAddress = (cards.find(c => c.focused) ?? cards[0])?.address ?? null;
-    setAgentOrder(cards.filter(c => c.connection !== "unavailable").map(c => c.address));
+    const collapsedGroups = shared("space-agents.groups") ?? {};
+    const groupStateKey = group => JSON.stringify([selectedSpace, space?.machine ?? null, group.key]);
+    const groupCollapsed = group => !compact && Boolean(collapsedGroups[groupStateKey(group)]);
+    const visibleCards = grouped ? groups.filter(group => !groupCollapsed(group)).flatMap(group => group.cards) : cards;
+    if (!visibleCards.some(c => c.address === this.keyboardAddress)) this.keyboardAddress = (visibleCards.find(c => c.focused) ?? visibleCards[0])?.address ?? null;
+    setAgentOrder(visibleCards.filter(c => c.connection !== "unavailable").map(c => c.address));
     for (const card of observed) {
       if (records.has(card.address) || !this.workingDirs.needs(card)) continue;
       cx.spawn(async cx => { await this.workingDirs.refresh(card, exec); cx.notify(); });
@@ -269,23 +273,36 @@ export default class SpaceAgents extends View {
         .role("list_box").accessibility_label(`Agents in ${space?.name ?? "selected space"}`)
         .track_focus(this.handle).tab_stop(true)
         .on_key_down((event, cx) => {
-          if (!cards.length) return;
-          const index = Math.max(0, cards.findIndex(c => c.address === this.keyboardAddress));
+          if (!visibleCards.length) return;
+          const index = Math.max(0, visibleCards.findIndex(c => c.address === this.keyboardAddress));
           if (event.keystroke === "enter" || event.keystroke === "space") {
             cx.stop_propagation();
-            this.focusCard(cards[index]);
+            this.focusCard(visibleCards[index]);
           } else if (event.keystroke === "up" || event.keystroke === "down") {
             cx.stop_propagation();
-            this.keyboardAddress = cards[(index + (event.keystroke === "down" ? 1 : cards.length - 1)) % cards.length].address;
+            this.keyboardAddress = visibleCards[(index + (event.keystroke === "down" ? 1 : visibleCards.length - 1)) % visibleCards.length].address;
             cx.notify();
           }
         })
-        .children(folded.agents ? [] : grouped ? groups.map((group, index) => v_flex().id(`space-agent-group-${index}`).w_full().flex_none().gap(6).role("group")
-          .accessibility_label(`${group.name}, ${group.cards.length} agents`)
-          .when(!compact, el => el.child(h_flex().px(8).pt(8).pb(3).gap(6).items_center().text_size(11.5).text_color(t.muted)
-            .child(div().flex_1().min_w(0).truncate().font_medium().tooltip(group.tooltip).child(group.name))
-            .child(div().flex_none().child(String(group.cards.length)))))
-          .children(group.cards.map(card => this.card(card, compact, t, true)))) : cards.map(card => this.card(card, compact, t))))
+        .children(folded.agents ? [] : grouped ? groups.map(group => {
+          const collapsed = groupCollapsed(group), key = groupStateKey(group);
+          const toggle = (_event, cx) => {
+            const saved = shared("space-agents.groups") ?? {};
+            setShared("space-agents.groups", { ...saved, [key]: !saved[key] });
+            cx.stop_propagation(); cx.notify();
+          };
+          return v_flex().id(`space-agent-group-${key}`).w_full().flex_none().gap(6).role("group")
+            .accessibility_label(`${group.name}, ${group.cards.length} agents`)
+            .when(!compact, el => el.child(Button.new(`space-agent-group-toggle-${key}`).w_full().h(28).px(8).gap(6).rounded(4)
+              .items_center().text_size(11.5).text_color(t.muted).cursor_pointer().tab_stop(true)
+              .hover(el => el.bg(t.hover).text_color(t.foreground)).tooltip(group.tooltip)
+              .accessibility_label(`${collapsed ? "Expand" : "Collapse"} ${group.name}`).on_click(toggle)
+              .on_key_down((event, cx) => { if (event.keystroke === "enter" || event.keystroke === "space") cx.stop_propagation(); })
+              .child(svg(`mods/workspace-chrome/chevron-${collapsed ? "right" : "down"}.svg`).size(12).flex_none())
+              .child(div().flex_1().min_w(0).truncate().font_medium().child(group.name))
+              .child(div().flex_none().child(String(group.cards.length)))))
+            .children(collapsed ? [] : group.cards.map(card => this.card(card, compact, t, true)));
+        }) : cards.map(card => this.card(card, compact, t))))
       .child(renderSessionHistory({ rows: historyRows, groups: historyGroups, controller: this.history, compact, theme: t, knownPrograms: this.knownPrograms, folded: Boolean(folded.history) })))
       .when(compact, el => el.child(h_flex().h(32).flex_none().justify_center().items_center()
         .child(Button.new("expand-space-sidebar").p(6).rounded(5).cursor_pointer().text_color(t.muted)
