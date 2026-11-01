@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { loadHerdrMod } from './helpers/load-herdr-mod.mjs';
+import { loadHerdrMod,modStorage } from './helpers/load-herdr-mod.mjs';
 import { state,context,render,text,find } from './helpers/herdr-runtime.mjs';
 import { agentCards } from '../mods/space-agents/model.js';
 
@@ -40,14 +40,6 @@ test('menu preserves ordered worktree nesting and selected identity',()=>{
   const options=rows({...live,spaces:[local,tree,remote],ordered}).filter(row=>row.kind==='space');
   assert.deepEqual(options.map(row=>row.id),['sp-local','tree','devbox/sp-remote']);assert.equal(options[1].tree,'└─');assert.equal(options[0].selected,true);
 });
-test('compact layout changes only the Spaces mod and its fixed height/minimum',()=>{
-  assert.equal(typeof model.compactSpacesLayout,'function');
-  const before={id:'root',children:[{id:'spaces',content:{mod:'spaces'},size:{px:180},min:90},{id:'agents',size:{weight:1},min:90},
-    {id:'panel-body',active:'plan',children:[{id:'plan',content:{mod:'plan'}},{id:'files',content:{mod:'files'}}]}]};
-  const after=model.compactSpacesLayout(before);
-  assert.deepEqual(after,{...before,children:[{...before.children[0],content:{mod:'compact-spaces'},size:{px:44},min:44},...before.children.slice(1)]});
-  assert.equal(before.children[0].size.px,180);
-});
 test('installed Spaces row has fixed bounds and a non-draggable divider while Agents stays flexible',async()=>{
   const layout=JSON.parse(await readFile(new URL('../layouts/herdr-workspace.json',import.meta.url),'utf8'));
   const sidebar=layout.children.find(node=>node.id==='sidebar');
@@ -65,6 +57,17 @@ async function widget(){
   state.layout={id:'sidebar',size:{px:320}};state.focusedHandle=null;
   const view=new module.default();view.init({},context());return view;
 }
+test('obsolete machine folds cannot suppress dropdown repository refreshes',async t=>{
+  const storage=modStorage('mods/compact-spaces');
+  const previous=storage.getItem('machines.folded');
+  t.after(()=>previous===null?storage.removeItem('machines.folded'):storage.setItem('machines.folded',previous));
+  storage.setItem('machines.folded',JSON.stringify([null,'devbox']));
+  const view=await widget();
+  view.git={'[null,"/task"]':{branch:'main'},'["devbox","/task"]':{branch:'feature'}};
+  view.checked={'[null,"/task"]':0,'["devbox","/task"]':0};
+  assert.deepEqual([...view.due(60001,state.data.allSpaces,[])],['[null,"/task"]','["devbox","/task"]']);
+  assert.deepEqual([...view.due(60000,state.data.allSpaces,[])],[]);
+});
 test('collapsed_selector_keeps_accessible_current_name and uses a native focused trigger',async()=>{
   const view=await widget();state.layout.size.px=44;
   const trigger=find(render(view),'space-selector-trigger');assert.ok(trigger);

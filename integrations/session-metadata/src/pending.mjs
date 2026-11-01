@@ -3,7 +3,7 @@ import { watch } from "node:fs";
 import { mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { atomicJson, readJson } from "./store.mjs";
-import { bindingKey, sessionKey } from "./contracts.mjs";
+import { sessionKey } from "./contracts.mjs";
 import { reconcileBinding, callPeer, ownerIsLive } from "./transport.mjs";
 import { applyPendingRename } from "./engine.mjs";
 

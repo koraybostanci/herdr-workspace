@@ -28,14 +28,3 @@ export function resolveSpaceAction(rowKey,{spaces,machines}) {
   }
   return null;
 }
-export function compactSpacesLayout(layout) {
-  let found=false;
-  function visit(node) {
-    if(node.id==='spaces') {
-      if(!['spaces','compact-spaces'].includes(node.content?.mod))throw Error('foreign-spaces-node');
-      found=true;return {...node,content:{...node.content,mod:'compact-spaces'},size:{px:44},min:44};
-    }
-    return node.children?{...node,children:node.children.map(visit)}:{...node};
-  }
-  const next=visit(layout);if(!found)throw Error('spaces-node-missing');return next;
-}

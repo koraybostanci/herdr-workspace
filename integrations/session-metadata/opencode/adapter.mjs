@@ -1,4 +1,3 @@
-import { sessionKey } from "../src/contracts.mjs";
 import { applyPeerPending } from "../src/pending.mjs";
 import { operationScope } from "../src/scope.mjs";
 

@@ -29,9 +29,9 @@ icons with tooltips instead of full cards.
 
 Only the verified PR button opens its canonical URL in the browser; it also
 focuses the associated pane. Title-only numbers are not links. Tab names are
-neither a title source nor a synchronization target. See
-`integrations/session-metadata/README.md` for observe-only setup, naming
-ownership, remote pairing and gated migration/rollback.
+neither a title source nor a synchronization target. See the
+[installation guide](../../docs/installation.md) for opt-in harness setup and upgrades,
+and [architecture notes](../../docs/architecture.md) for the shared helper and observe-only naming.
 
 The list updates automatically when the selected space changes or Herdr detects
 an agent program running in a pane. A newly launched agent appears before its
@@ -88,7 +88,7 @@ Verified Space associations win over folder discovery. Conversations created out
 
 Click a History row, or focus the list and use Up/Down then Enter/Space. The helper rechecks the exact native ID, original folder and harness before preparing a launch. Already-open sessions are focused. Merely opening, viewing or scrolling keeps the session in History; sending a new message or starting work moves it to Agents. Startup metadata and historical replay do not count as interaction. Repeated clicks while opening do not create another tab. Failed lookup never creates an empty replacement conversation; the compact row retains a reason in its tooltip and can be clicked again to retry. Periodic refresh preserves the number of rows already loaded.
 
-History metadata is private local state. Native titles can contain private content. No transcript bodies are copied and no sessions are automatically renamed, archived, deleted or forked. Uninstall preserves the catalog. See `docs/installation.md` for integration opt-in and explicit source mappings.
+History metadata is private local state. Native titles can contain private content. No transcript bodies are copied and no sessions are automatically renamed, archived, deleted or forked. Uninstall preserves the catalog. See [Session History setup](../../docs/installation.md#session-history) for integration opt-in and explicit source mappings.
 
 ## GitHub PR discovery
 
@@ -140,12 +140,11 @@ global design files, or design system is needed.
 
 ## Checks
 
-Run the tests from Herdr's config folder, then its one-render mod check:
+Run tests from the repository root, then the one-render mod check. Installed copies do not include the test suite:
 
 ```sh
-cd ~/.config/herdr-app
-node --test
-herdr-app check ~/.config/herdr-app/mods/space-agents
+npm test
+herdr-app check mods/space-agents
 ```
 
 These checks do not replace a live check of space switching, newly reported
