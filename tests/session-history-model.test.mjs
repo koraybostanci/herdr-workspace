@@ -49,3 +49,12 @@ test("late and foreign history responses never replace another Space or query", 
   }
   assert.equal(acceptHistoryPage({ ...response, owner: "foreign" }, wanted), false);
 });
+
+test("remote machine aliases resolve through configured source provenance, not guessed paths", () => {
+  const remote = { host: "remote-host", authority: "local", harness: "opencode-v2", id: "ses_remote" };
+  const input = registry([entry("ses_remote", { session: remote, directory: "/srv/repo" })], [{ id: '["remote-host","local","opencode-v2"]',
+    host: "remote-host", authority: "local", harness: "opencode-v2", machine: "box", peerId: "box-peer", state: "ready", complete: true }]);
+  const page = createHistoryView(input, request({ space: { ...space, id: "box/one", host: "box", machine: "box", folder: "/srv/repo" } }));
+  assert.equal(page.history.length, 1);
+  assert.equal(page.resolvedSpace.host, "remote-host");
+});

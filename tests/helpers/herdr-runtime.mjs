@@ -39,7 +39,7 @@ export const panes = () => state.data.allPanes;
 export const terminals = () => state.data.allTerminals;
 export const focused = () => state.data.focused ?? ({ space: state.data.selectedSpace });
 export const theme = () => new Proxy({}, { get: () => "#aabbcc" });
-export const layout = () => state.layout ?? ({ id: "sidebar", size: { px: state.width ?? 320 } });
+export const layout = () => state.layout ?? ({ id: "sidebar", size: { px: state.width ?? 320 }, children: [{ id: "agents", content: { mod: "space-agents" } }] });
 export const shared = key => key === "layout" ? "herdr-workspace" : state.shared?.[key] ?? null;
 export const setShared = (key, value) => { state.shared ??= {}; state.shared[key] = value; };
 export const window = () => ({ platform: "macos", active:true });
@@ -68,7 +68,7 @@ export function context() {
       const id=(state.handleCounter??0)+1;state.handleCounter=id;
       return { id, is_focused: () => state.focusedHandle===id, focus(){state.focusedHandle=id;}, release(){} };
     },
-    timer: { every(ms,handler) {(state.timers??=[]).push({ms,handler});} },
+    timer: { every(ms,handler) {(state.timers??=[]).push({ms,handler});}, after(ms,handler) {(state.timers??=[]).push({ms,handler,once:true});} },
     spawn(task) { state.tasks.push(() => task(context())); },
     notify() {},
     stop_propagation() {},

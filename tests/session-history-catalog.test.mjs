@@ -134,3 +134,23 @@ test("configured peer histories retain verified Space associations and report ou
   assert.equal(next.sessions.length, 1);
   assert.equal(next.sources.find(s => s.host === "remote").state, "unavailable");
 });
+
+test("short sessions remain known after exit even when native inventory is still cached", async t => {
+  const f = await isolatedFixture(); t.after(f.cleanup);
+  const nativeSource = { ...source("opencode-v2"), state: "ready", complete: true, checkedAt: 1000 };
+  await f.store.writeHistory({ schema: 1, owner: "herdr-session-metadata", revision: 1, updatedAt: 1000, sessions: [], sources: [nativeSource] }, null);
+  const binding = { ...f.binding, space: { host: "local", coreSession: "default", id: "one" }, lookupDir: "/repo" };
+  await f.store.bind(binding, null); await f.store.write(f.record, null); await f.store.releaseSessionBinding(binding);
+  const result = await refreshSessionCatalog({ ...f, env: {}, peers: [], historySources: [nativeSource], clock: () => 2000,
+    run: () => assert.fail("cached inventory must not perform a full scan") });
+  assert.equal(result.sessions[0].session.id, "ses_fixture_A");
+  assert.equal(result.sessions[0].title, "Features");
+  assert.equal(result.sessions[0].associations[0].id, "one");
+  const runtime = { ...f, env: {}, peers: [], historySources: [nativeSource], clock: () => 3000, run: async (_host, _command, args) => {
+    if (args[0] === "service") return { code: 0, stdout: "http://127.0.0.1:4096" };
+    return args.includes("/api/session") ? { code: 0, stdout: '{"data":[],"cursor":{"next":null}}' }
+      : { code: 1, stdout: '{"_tag":"SessionNotFoundError"}' };
+  } };
+  assert.equal((await refreshSessionCatalog(runtime, { force: true })).sessions.length, 0);
+  assert.equal((await refreshSessionCatalog(runtime)).sessions.length, 0);
+});

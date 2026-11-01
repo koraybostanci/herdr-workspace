@@ -14,14 +14,16 @@ function validRequest(request) {
 }
 export function createHistoryView(registry, request) {
   if (!validRequest(request) || !validateRegistry(registry)) throw Error("Invalid history request or registry");
-  const partition = partitionSpaceSessions({ registry, space: request.space });
+  const mapped = request.space.machine && registry.sources.find(s => s.machine === request.space.machine);
+  const resolvedSpace = mapped ? { ...request.space, host: mapped.host } : request.space;
+  const partition = partitionSpaceSessions({ registry, space: resolvedSpace });
   const allGroups = historyGroups(partition.history, { mode: request.view, query: request.query });
   const ordered = allGroups.flatMap(g => g.rows);
   const display = row => ({ ...row, title: [...row.title].slice(0, 512).join("") });
   const rows = ordered.slice(request.offset, request.offset + 50).map(display);
   const relevant = new Set([...partition.agents, ...partition.history].map(e => e.sourceId));
-  const sources = registry.sources.filter(s => s.host === request.space.host || relevant.has(s.id));
-  const result = { schema: 1, owner: OWNER, request, revision: registry.revision, agents: partition.agents.map(display), history: rows,
+  const sources = registry.sources.filter(s => s.host === resolvedSpace.host || relevant.has(s.id));
+  const result = { schema: 1, owner: OWNER, request, resolvedSpace, revision: registry.revision, agents: partition.agents.map(display), history: rows,
     groups: [], total: ordered.length, hasMore: false, nextOffset: request.offset, sources, complete: sources.length > 0 && sources.every(s => s.complete) };
   for (;;) {
     result.groups = historyGroups(result.history, { mode: request.view });

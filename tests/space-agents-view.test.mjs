@@ -1,20 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { loadHerdrMod } from "./helpers/load-herdr-mod.mjs";
 import { state, context, render, text, find } from "./helpers/herdr-runtime.mjs";
 import { agentCards } from "../mods/space-agents/model.js";
 import { metadataFixture } from "./helpers/session-metadata-fixtures.mjs";
 import { bindingKey } from "../integrations/session-metadata/src/contracts.mjs";
 
-const runtime = new URL("./helpers/herdr-runtime.mjs", import.meta.url).href;
-const model = new URL("../mods/space-agents/model.js", import.meta.url).href;
-const source = (await readFile(new URL("../mods/space-agents/main.js", import.meta.url), "utf8"))
-  .replaceAll('from "gpui-kit"', `from "${runtime}"`)
-  .replaceAll('from "gpui-base"', `from "${runtime}"`)
-  .replaceAll('from "herdr"', `from "${runtime}"`)
-  .replaceAll('from "./model.js"', `from "${model}"`)
-  .replaceAll('from "./session-metadata.js"', `from "${new URL("../mods/space-agents/session-metadata.js", import.meta.url).href}"`);
-const { default: SpaceAgents } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const { default: SpaceAgents } = await loadHerdrMod(new URL("../mods/space-agents", import.meta.url).pathname);
 
 const program = { name: "OpenCode", key: "opencode", icon: "icons/opencode.svg", tint: false, agent: true };
 function fixture() {

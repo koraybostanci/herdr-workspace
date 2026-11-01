@@ -3,7 +3,7 @@ import { join, dirname } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { OWNER, sessionKey, bindingKey, validBinding, validRecord, validateSnapshot } from "./contracts.mjs";
-import { validateRegistry } from "./session-registry.mjs";
+import { validateRegistry, normalizedDirectory } from "./session-registry.mjs";
 
 const hash = key => createHash("sha256").update(key).digest("hex");
 export async function readJson(path) {
@@ -80,8 +80,14 @@ export function createStore({ root, viewFile, clock = Date.now }) {
       await ensure();
       const files = await fs.readdir(join(root, "history-associations")).catch(e => { if (e.code === "ENOENT") return []; throw e; });
       const values = await Promise.all(files.filter(f => /^[a-f0-9]{64}\.json$/.test(f)).map(f => readJson(join(root, "history-associations", f))));
-      return values.filter(v => v?.owner === OWNER && v.schema === 1 && typeof v.space?.id === "string" && typeof v.space.host === "string"
+      return values.filter(v => v?.owner === OWNER && v.schema === 1 && !v.missing && typeof v.space?.id === "string" && typeof v.space.host === "string"
         && typeof v.space.coreSession === "string" && Number.isSafeInteger(v.associatedAt) && (() => { try { return Boolean(sessionKey(v.session)); } catch { return false; } })());
+    },
+    async markHistoryMissing(session) {
+      return store.withMutation(session, async () => {
+        const location = path("history-associations", sessionKey(session)), value = await readJson(location);
+        if (value?.owner === OWNER && value.schema === 1) await atomicJson(location, { ...value, missing: true });
+      });
     },
     withMutation(key, action) { return locked(`mutation:${sessionKey(key)}`, action); },
     async read(key) {
@@ -114,7 +120,7 @@ export function createStore({ root, viewFile, clock = Date.now }) {
         if ((old?.generation ?? null) !== expectedGeneration) return false;
         await atomicJson(path("bindings", key), binding);
         if (binding.space) await atomicJson(path("history-associations", sessionKey(binding.session)),
-          { schema: 1, owner: OWNER, session: binding.session, space: binding.space, associatedAt: clock() });
+          { schema: 1, owner: OWNER, session: binding.session, space: binding.space, directory: normalizedDirectory(binding.lookupDir), associatedAt: clock() });
         return true;
       }));
     },

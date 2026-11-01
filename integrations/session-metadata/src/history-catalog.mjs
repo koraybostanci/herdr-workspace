@@ -110,7 +110,7 @@ export async function refreshSessionCatalog(runtime, { force = false } = {}) {
       if (page.complete) for (const old of previous?.sessions ?? []) {
         if (old.sourceId !== source.id || page.entries.some(e => sessionIdentityKey(e.session) === sessionIdentityKey(old.session))) continue;
         const found = await lookupNativeSession(runtime, source, old.session.id, old.directory);
-        if (found.state === "missing") page.entries.push({ ...old, saved: "missing" });
+        if (found.state === "missing") { page.entries.push({ ...old, saved: "missing" }); await runtime.store.markHistoryMissing(old.session); }
       }
       discoveries.push(page);
     }
@@ -130,7 +130,7 @@ export async function refreshSessionCatalog(runtime, { force = false } = {}) {
             for (const association of e.associations) if (association.host === peer.host) remoteAssociations.push({ session: e.session,
               space: { host: peer.host, coreSession: association.coreSession, id: `${peer.target}/${association.id}` }, associatedAt: association.associatedAt });
           }
-          health.splice(0, health.length, ...(page.sources ?? []).filter(s => s.host === peer.host).map(s => ({ ...s, peerId: peer.id, checkedAt: now })));
+          health.splice(0, health.length, ...(page.sources ?? []).filter(s => s.host === peer.host).map(s => ({ ...s, peerId: peer.id, machine: peer.target, checkedAt: now })));
           discoveries.push({ entries: page.entries.map(e => ({ ...e, bindings: [], associations: [] })), complete: false });
           if (page.next == null) { finished = true; break; }
           if (!Number.isSafeInteger(page.next) || page.next <= offset) throw Error("Invalid peer cursor");
@@ -147,14 +147,20 @@ export async function refreshSessionCatalog(runtime, { force = false } = {}) {
       } catch {
         const old = previous?.sources.filter(s => s.host === peer.host) ?? [];
         const unavailable = old.length ? old : ["claude", "opencode-v2"].map(harness => ({ host: peer.host, authority: harness === "claude" ? "claude" : "local", harness }));
-        remoteHealth.push(...unavailable.map(s => ({ ...s, id: s.id ?? sourceKey(s), peerId: peer.id, checkedAt: now,
+        remoteHealth.push(...unavailable.map(s => ({ ...s, id: s.id ?? sourceKey(s), peerId: peer.id, machine: peer.target, checkedAt: now,
           state: "unavailable", complete: false, errorCode: "peer-unavailable" })));
       }
     }
     const observed = await collectSessionPresence({ ...runtime, previous }, peers);
     const next = reconcileSessionRegistry(previous, { discoveries, presence: observed.presence, sources: [...observed.sources, ...remoteHealth], now });
     for (const association of [...await runtime.store.listHistoryAssociations(), ...remoteAssociations]) {
-      const record = next.sessions.find(e => sessionIdentityKey(e.session) === sessionIdentityKey(association.session));
+      let record = next.sessions.find(e => sessionIdentityKey(e.session) === sessionIdentityKey(association.session));
+      if (!record && !discoveries.some(p => p.entries.some(e => e.saved === "missing" && sessionIdentityKey(e.session) === sessionIdentityKey(association.session)))) {
+        const metadata = await runtime.store.read(association.session);
+        record = { session: association.session, title: clean(metadata?.canonicalTitle) || (association.session.harness === "claude" ? "Claude Code" : "OpenCode"),
+          directory: normalizedDirectory(association.directory), updatedAt: 0, sourceId: sourceKey(association.session), saved: "checking", associations: [], bindings: [] };
+        next.sessions.push(record);
+      }
       if (record && !record.associations.some(a => a.associatedAt > association.associatedAt)) record.associations = [{ ...association.space, associatedAt: association.associatedAt }];
     }
     await runtime.store.writeHistory(next, previous?.revision ?? null);
