@@ -85,6 +85,22 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
     const { collectSessionPresence } = await import("../src/session-presence.mjs");
     output = { schema: 1, owner: OWNER, ...await collectSessionPresence(runtime) };
   }
+  else if (command === "history-snapshot") {
+    const { refreshSessionCatalog } = await import("../src/history-catalog.mjs");
+    const value = await refreshSessionCatalog({ ...runtime, peers: [] });
+    const offset = Number(argument(argv, "offset") ?? 0);
+    if (!Number.isSafeInteger(offset) || offset < 0) throw Error("Invalid history offset");
+    output = { schema: 1, owner: OWNER, entries: value.sessions.slice(offset, offset + 100),
+      next: offset + 100 < value.sessions.length ? offset + 100 : null, sources: value.sources };
+  }
+  else if (command === "history-lookup") {
+    const { historySources, lookupNativeSession } = await import("../src/history-catalog.mjs");
+    const session = JSON.parse(argument(argv, "session"));
+    const source = (await historySources(runtime)).find(s => s.host === session.host && s.authority === session.authority && s.harness === session.harness);
+    if (!source) throw Error("History authority unavailable");
+    const found = await lookupNativeSession(runtime, source, session.id);
+    output = { owner: OWNER, schema: 1, state: found.state };
+  }
   else if (command === "refresh-view") {
     const { refreshView } = await import("../src/collector.mjs");
     const view = await refreshView(runtime, await peers(runtime));

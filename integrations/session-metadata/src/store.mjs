@@ -3,6 +3,7 @@ import { join, dirname } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { OWNER, sessionKey, bindingKey, validBinding, validRecord, validateSnapshot } from "./contracts.mjs";
+import { validateRegistry } from "./session-registry.mjs";
 
 const hash = key => createHash("sha256").update(key).digest("hex");
 export async function readJson(path) {
@@ -58,6 +59,30 @@ export function createStore({ root, viewFile, clock = Date.now }) {
   }
   const store = {
     root, viewFile,
+    withHistoryMutation(action) { return locked("history-refresh", action); },
+    async readHistory() {
+      await ensure();
+      let raw;
+      try { raw = JSON.parse(await fs.readFile(join(root, "history/registry.json"), "utf8")); }
+      catch (e) { if (e.code === "ENOENT") return null; throw Error("Invalid history registry"); }
+      if (!validateRegistry(raw)) throw Error("Invalid history registry owner or schema");
+      return raw;
+    },
+    async writeHistory(registry, expectedRevision) {
+      if (!validateRegistry(registry)) throw Error("Invalid history registry");
+      return locked("history-write", async () => {
+        const old = await store.readHistory();
+        if ((old?.revision ?? null) !== expectedRevision) throw Error("History revision changed");
+        await atomicJson(join(root, "history/registry.json"), registry);
+      });
+    },
+    async listHistoryAssociations() {
+      await ensure();
+      const files = await fs.readdir(join(root, "history-associations")).catch(e => { if (e.code === "ENOENT") return []; throw e; });
+      const values = await Promise.all(files.filter(f => /^[a-f0-9]{64}\.json$/.test(f)).map(f => readJson(join(root, "history-associations", f))));
+      return values.filter(v => v?.owner === OWNER && v.schema === 1 && typeof v.space?.id === "string" && typeof v.space.host === "string"
+        && typeof v.space.coreSession === "string" && Number.isSafeInteger(v.associatedAt) && (() => { try { return Boolean(sessionKey(v.session)); } catch { return false; } })());
+    },
     withMutation(key, action) { return locked(`mutation:${sessionKey(key)}`, action); },
     async read(key) {
       await ensure();
@@ -88,6 +113,8 @@ export function createStore({ root, viewFile, clock = Date.now }) {
         const old = await store.getBinding(key);
         if ((old?.generation ?? null) !== expectedGeneration) return false;
         await atomicJson(path("bindings", key), binding);
+        if (binding.space) await atomicJson(path("history-associations", sessionKey(binding.session)),
+          { schema: 1, owner: OWNER, session: binding.session, space: binding.space, associatedAt: clock() });
         return true;
       }));
     },
