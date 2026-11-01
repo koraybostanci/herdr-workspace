@@ -13,7 +13,8 @@ export function planEntries(raw,terminals,now=Date.now()) {
     if(label?.epoch!==2||label.key!==bindingKey(proof)||label.generation!==proof.generation||label.session!==sessionKey(proof.session))continue;
     const artifacts=(Array.isArray(entry.artifacts)?entry.artifacts:[]).filter(a=>decodeArtifact(a).ok&&sessionKey(a.session)===sessionKey(proof.session));
     const capabilities={send:entry.capabilities?.send===true,reason:typeof entry.capabilities?.reason==='string'?entry.capabilities.reason:null};
-    entries.push({proof,artifacts,capabilities});
+    const taskRevision=Number.isSafeInteger(entry.taskRevision)&&entry.taskRevision>=0?entry.taskRevision:null;
+    entries.push({proof,artifacts,capabilities,taskRevision});
   }
   return entries;
 }
@@ -34,7 +35,7 @@ export function selectPlanOwner({focused,agents=[],panes=[],terminals=[],space,p
   const same=previous?.owner&&sessionKey(previous.owner)===sessionKey(owner)&&previous.proof?.generation===entry.proof.generation
     &&previous.space===space.id&&previous.tab===tab;
   const title=agents.find(a=>a.address===entry.proof.terminal)?.title??panes.find(p=>p.terminal===entry.proof.terminal)?.title??owner.id;
-  return {owner,proof:entry.proof,artifacts:entry.artifacts,capabilities:entry.capabilities,address:entry.proof.terminal,
+  return {owner,proof:entry.proof,artifacts:entry.artifacts,capabilities:entry.capabilities,taskRevision:entry.taskRevision,address:entry.proof.terminal,
     space:space.id,tab,title,epoch:same?previous.epoch:(previous?.epoch??0)+1};
 }
 export function planAvailable(owner,artifacts) {

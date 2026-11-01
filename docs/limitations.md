@@ -19,6 +19,7 @@ Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any 
 - **Markdown opening is read-only.** Open Markdown opens a source pane in the agent's existing tab, not a writable editor or external application. It requires a live, verified owning session and a splittable model pane.
 - **Tasks needs structural evidence.** Phase/task headings use `Phase N`/`Task N`, or Markdown checklists. Arbitrary prose is not parsed into work. Agent progress requires successful task-tool observations; unsupported tools are not guessed. A snapshot without an exact plan path/revision stays Unassigned, even if a title looks similar. Native OpenCode task-list APIs are not assumed.
 - Automated native-mod tests exercise event handlers through a boundary fixture. `herdr-app check` verifies loading, not layout, pixels, or pointer behavior; those still need live inspection.
+- Repository detection resolves SCP-style SSH aliases with `ssh -G` on the checkout's execution host and accepts them only when the configured hostname is `github.com`. GitHub authentication is unchanged: an inherited `GH_TOKEN` still takes precedence over the CLI's saved accounts, so an account that cannot access a private repository cannot supply its verified PR badge.
 
 ## Metadata
 

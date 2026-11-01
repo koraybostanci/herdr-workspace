@@ -10,6 +10,8 @@ The **Plan** and **Tasks** tabs share one session-bound review. Plan gives the d
 
 **Open Markdown** opens the actual registered file in a read-only native source pane beside the agent in the same session tab. The pane reads through the verified helper, does not create a temporary copy, and has no independent review composer. It cannot load an arbitrary path or borrow another session's plan. **Expand** widens the side panel; **Collapse** restores its previous width.
 
+Returning to a recently viewed session shows its last verified plan from a bounded in-memory cache while the helper checks the latest revision. The cache is isolated by session, owner generation, and document revision; Send stays disabled until that check finishes. Plan/Tasks switching does not launch helper requests, and unrelated session heartbeats do not reread the document. Opening a plan loads its document and saved review together in one private request.
+
 If saving fails, keep Herdr open. Use Retry saving or Copy draft. The tab bar's Unsaved review control recovers an outgoing draft after selecting another agent. Closing Herdr with an unacknowledged draft can lose that draft. Unknown delivery is never automatically resent; Check status is read-only. Retry review warns about duplicates and needs a new confirmation.
 
 Image or HTML markers use a selectable native source reader. Other documents use native Markdown. Only HTTPS links can open. A changed symlink target requires explicit registration again.

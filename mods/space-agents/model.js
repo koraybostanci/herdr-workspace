@@ -1,3 +1,5 @@
+import { resolveGithubRepo } from "./github.js";
+
 export function agentCards({ allAgents, allSpaces, allPanes, allTerminals, selectedSpace, knownAgentKeys = [] }) {
   const space = selectedSpace == null ? allSpaces.find(s => s.active) : allSpaces.find(s => s.id === selectedSpace);
   if (!space) return [];
@@ -92,9 +94,8 @@ export class WorkingDirectories {
         const gitRoot = await git(["rev-parse", "--show-toplevel"]);
         if (!gitRoot) return entry.value = null;
         const remote = await git(["config", "--get", "remote.origin.url"]);
-        const match = remote?.match(/^(?:git@github\.com:|https:\/\/github\.com\/)([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
-        if (!match) return entry.value = null;
-        const repo = { host: "github.com", owner: match[1], name: match[2] };
+        const repo = await resolveGithubRepo(remote, execute, options);
+        if (!repo) return entry.value = null;
         let projectRepo = repo;
         if (previous?.value?.repo?.owner === repo.owner && previous.value.repo.name === repo.name) projectRepo = previous.value.projectRepo;
         const branch = await git(["branch", "--show-current"]);

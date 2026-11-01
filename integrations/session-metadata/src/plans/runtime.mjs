@@ -65,7 +65,9 @@ export function createPlanRuntime(env=process.env,overrides={}) {
     list:payload=>listArtifacts(payload.session,{...runtime,proof:payload.proof}),
     read:async payload=>{
       const document=await readArtifact(payload,{...runtime,proof:payload.proof});
-      return document.state==='ready'?{...document,tasks:readPlanTasks(document.artifact,document.text,document.sections,runtime)}:document;
+      const scope={...payload,artifactId:document.artifact.id};
+      return {...document,...(document.state==='ready'?{tasks:readPlanTasks(document.artifact,document.text,document.sections,runtime)}:{}),
+        ...(payload.review===true?{review:{comments:listComments(scope,db),conflicts:listCommentConflicts(scope,db),submissions:listSubmissions(scope,db)}}:{})};
     },
     'update-tasks':async payload=>{const result=await recordTaskSnapshot(payload,runtime);if(result.updated)await publishPlanView(runtime);return result;},
     // Draft persistence is scoped to a previously registered artifact, not the current process lifetime.

@@ -78,3 +78,11 @@
 - Scoped local deployment preserves the existing custom layout and unrelated mods, retains legacy helper setup, and backs up changed files. Direct delivery remains gated; no feedback was sent during verification.
 - Live pointer/keyboard and visual-state verification remains incomplete: macOS Accessibility/Screen Recording permissions were unavailable. Automated boundary tests do not replace those checks.
 - Draft PR: https://github.com/koraybostanci/herdr-workspace/pull/2. No label was applied because none of the repository's labels match the configured PR-label table.
+
+## Follow-up corrections and verification
+
+- Resolve configured GitHub SSH aliases on the checkout's execution host, accepting only the canonical `github.com` hostname. Authentication is intentionally unchanged; an inaccessible private repository still cannot supply a verified PR badge.
+- Use a session-scoped task revision instead of the global publication sequence to avoid unrelated heartbeat reads. Load the document and saved review in one request, and retain recent plans in a generation/revision-isolated memory cache while revalidating.
+- Independent review found and regression tests fixed stale retained Source text and a task-refresh retry gap.
+- A live native sample found rendering stalled in QuickJS JIT maintenance. Replace per-field iteration closures with equivalent loops; repeated proof/artifact validation no longer allocates a fresh set of callbacks on each pass. No ownership, field, or revision checks were removed.
+- Follow-up suite: 369 tests passed; clean-install, privacy, and native-load checks passed. The user reproduced the original delay and confirmed the installed workaround made Plan opening and Plan/Tasks switching **much faster**. Other unexercised GUI paths remain subject to the original verification limits.

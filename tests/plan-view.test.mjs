@@ -204,7 +204,8 @@ async function widgetFixture(t,folder='mods/plan') {
       try {
         if(op==='read'){
           const document=await readArtifact(payload,{...f,proof:payload.proof??f.proof,lifecycle:{verify:async()=>true}});
-          return {ok:true,value:document.state==='ready'?{...document,tasks:readPlanTasks(document.artifact,document.text,document.sections,f)}:document};
+          const review=payload.review?{review:{comments:listComments(payload,f.db),conflicts:listCommentConflicts(payload,f.db),submissions:listSubmissions(payload,f.db)}}:{};
+          return {ok:true,value:{...document,...review,...(document.state==='ready'?{tasks:readPlanTasks(document.artifact,document.text,document.sections,f)}:{})}};
         }
         if(op==='comments')return {ok:true,value:{comments:listComments(payload,f.db),conflicts:listCommentConflicts(payload,f.db),submissions:listSubmissions(payload,f.db)}};
         if(op==='save-comment')return {ok:true,value:saveComment(payload,f.db)};
@@ -426,6 +427,7 @@ test('task-only metadata publication refreshes statuses without a Markdown revis
   await recordTaskSnapshot({session:f.session,proof:f.proof,eventId:'live-tasks',observedAt:1000,tasks:[{id:'a',title:'API',status:'completed'}],plan:{path:current.path,documentHash:current.hash}},
     {...f,lifecycle:{verify:async()=>true}});
   find(render(f.view),'plan-tab-tasks').attributes.on_click[0]({},context());f.view.planView.sequence++;
+  f.view.planView.entries[0].taskRevision=1000;
   render(f.view);await drain();assert.ok(text(render(f.view)).includes('Done'));
 });
 
@@ -467,6 +469,67 @@ test('an unchanged metadata heartbeat preserves the frozen review confirmation',
   f.view.planView.sequence++;render(f.view);await drain();assert.equal(f.view.preview,preview);
   find(render(f.view),'plan-confirm-send').attributes.on_click[0]({},context());await drain();assert.equal(f.admissions.length,1);
   assert.deepEqual(f.calls.find(call=>call.op==='submit').payload.proof,renewed);
+});
+
+test('unrelated metadata heartbeats do not reread an unchanged plan',async t=>{
+  const f=await widgetFixture(t),before=f.calls.filter(call=>call.op==='read').length;
+  for(let index=0;index<4;index++){f.view.planView.sequence++;render(f.view);await drain();}
+  assert.equal(f.calls.filter(call=>call.op==='read').length,before);
+  find(render(f.view),'plan-tab-tasks').attributes.on_click[0]({},context());render(f.view);
+  find(render(f.view),'plan-tab-document').attributes.on_click[0]({},context());render(f.view);await drain();
+  assert.equal(f.calls.filter(call=>call.op==='read').length,before);
+});
+
+test('returning to the same session shows its cached plan before helper revalidation finishes',async t=>{
+  const f=await widgetFixture(t);f.view.composer.set_value('Keep my feedback');
+  native.data.focused={space:'sp',tab:'ta',terminal:'unbound'};render(f.view);
+  const original=f.view.client.call,entered=deferred(),wait=deferred();
+  f.view.client.call=async(op,payload)=>{if(op==='read'){entered.resolve();await wait.promise;}return original(op,payload);};
+  native.data.focused={space:'sp',tab:'ta',terminal:'t-plan'};
+  const tree=render(f.view);assert.ok(find(tree,'plan-document'));assert.equal(f.view.composer.value(),'Keep my feedback');
+  assert.ok(text(tree).includes('Checking latest revision…'));
+  const work=native.tasks.splice(0).map(task=>task());await entered.promise;wait.resolve();await Promise.all(work);await drain();
+  assert.equal(f.view.loading,false);assert.equal(f.view.composer.value(),'Keep my feedback');
+});
+
+test('opening a plan loads document and private review in one helper request',async t=>{
+  const f=await widgetFixture(t);
+  assert.equal(f.calls.filter(call=>call.op==='read').length,1);
+  assert.equal(f.calls.filter(call=>call.op==='comments').length,0);
+});
+
+test('a replacement owner generation cannot reuse the earlier generation cached plan',async t=>{
+  const f=await widgetFixture(t);native.data.focused={space:'sp',tab:'ta',terminal:'unbound'};render(f.view);
+  const changed={...f.view.planView.entries[0].proof,generation:'replacement-owner'};f.view.planView.entries[0].proof=changed;
+  native.data.allTerminals[0].labels['herdr.plan-binding']=JSON.stringify({key:bindingKey(changed),generation:changed.generation,session:sessionKey(changed.session),epoch:2});
+  native.data.focused={space:'sp',tab:'ta',terminal:'t-plan'};
+  assert.equal(find(render(f.view),'plan-document'),undefined);await drain();assert.ok(find(render(f.view),'plan-document'));
+});
+
+test('cached Source never presents an earlier editor value as the current plan revision',async t=>{
+  const f=await widgetFixture(t);
+  find(render(f.view),'plan-reader-mode').attributes.on_click[0]({},context());const editor=f.view.sourceEditor;
+  find(render(f.view),'plan-reader-mode').attributes.on_click[0]({},context());
+  await writeFile(f.artifact.path,'# Revised plan\n');f.view.load(context());await drain();
+  f.view.planView.entries[0].artifacts=[f.view.document.artifact];
+  native.data.focused={space:'sp',tab:'ta',terminal:'unbound'};render(f.view);
+  f.view.readSource=true; // Source was selected on the intervening session.
+  native.data.focused={space:'sp',tab:'ta',terminal:'t-plan'};
+  assert.ok(find(render(f.view),'plan-source'));assert.equal(f.view.sourceEditor,editor);
+  assert.equal(f.view.sourceEditor.value(),'# Revised plan\n');
+});
+
+test('a failed task refresh is retried on the next healthy metadata heartbeat',async t=>{
+  const f=await widgetFixture(t);await writeFile(f.artifact.path,'# Plan\n- [ ] API\n');f.view.load(context());await drain();
+  const artifact=f.view.document.artifact;
+  await recordTaskSnapshot({session:f.session,proof:f.proof,eventId:'retry-tasks',observedAt:1000,tasks:[{id:'a',title:'API',status:'completed'}],plan:{path:artifact.path,documentHash:artifact.hash}},
+    {...f,lifecycle:{verify:async()=>true}});
+  const original=f.view.client.call;let fail=true;
+  f.view.client.call=async(op,payload)=>op==='read'&&fail?{ok:false,reason:'temporary-failure'}:original(op,payload);
+  f.view.planView.entries[0].taskRevision=1000;f.view.planView.sequence++;render(f.view);await drain();
+  assert.equal(f.view.document.tasks.tasks[0].status,'pending');
+  fail=false;f.view.planView.sequence++;render(f.view);await drain();
+  assert.equal(f.view.document.tasks.tasks[0].status,'completed');
 });
 
 test('native retry of unknown delivery warns about duplicates and requires a new explicit confirmation',async t=>{

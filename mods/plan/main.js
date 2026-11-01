@@ -37,6 +37,7 @@ export default class Plan extends View {
     this.composers=stored('composers');this.watched=null;this.preview=null;this.sending=false;this.readSource=false;
     this.deliveries=new Map();
     this.sourceEditors=new Map();
+    this.cachedPlans=new Map();
     this.instance='plan-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);this.errorFingerprint='';
     this.reloadMetadata(cx);
     cx.spawn(async cx=>{
@@ -96,16 +97,37 @@ export default class Plan extends View {
     }
     const fingerprint=JSON.stringify([sessionKey(this.selection.owner),this.selection.proof.generation,this.selection.epoch,choice.id,choice.revision,choice.hash]);
     if(fingerprint===this.fingerprint){
-      if(this.taskSequence!==this.planView.sequence&&this.document?.state==='ready'){
-        this.taskSequence=this.planView.sequence;this.refreshTasks(cx);
+      if(this.taskRevision!==this.selection.taskRevision&&this.document?.state==='ready'){
+        this.taskRevision=this.selection.taskRevision;this.refreshTasks(cx);
       }
       return;
     }
-    this.taskSequence=this.planView.sequence;
+    this.taskRevision=this.selection.taskRevision;
     this.fingerprint=fingerprint;this.preview=null;
     this.context={ownerKey:sessionKey(this.selection.owner),artifactId:choice.id,epoch:this.selection.epoch,loadId:++this.loadId};
     this.delivery=this.deliveries.get(documentKey(this.selection.owner,choice.id))??null;
+    this.restoreCachedPlan(choice,cx);
     this.load(cx,choice);
+  }
+  cacheCurrentPlan() {
+    if(this.document?.state!=='ready'||!this.selection)return;
+    const editor=this.sourceEditors.get(documentKey(this.selection.owner,this.document.artifact.id));
+    if(editor&&editor.value()!==this.document.text)editor.set_value(this.document.text);
+    const key=JSON.stringify([sessionKey(this.selection.owner),this.selection.proof.generation,this.document.artifact.id]);
+    this.cachedPlans.delete(key);
+    this.cachedPlans.set(key,{document:this.document,sections:this.sections,presentation:this.presentation,comments:this.comments,submissions:this.submissions});
+    if(this.cachedPlans.size>4)this.cachedPlans.delete(this.cachedPlans.keys().next().value);
+  }
+  restoreCachedPlan(artifact,cx) {
+    const key=JSON.stringify([sessionKey(this.selection.owner),this.selection.proof.generation,artifact.id]),cached=this.cachedPlans.get(key);
+    if(!cached||cached.document.artifact.hash!==artifact.hash||cached.document.artifact.revision!==artifact.revision)return;
+    const editor=this.sourceEditors.get(documentKey(this.selection.owner,artifact.id));
+    if((cached.presentation.mode==='source'||this.readSource)&&(!editor||editor.value()!==cached.document.text))return;
+    this.document=cached.document;this.sections=cached.sections;this.presentation=cached.presentation;
+    this.comments=cached.comments;this.submissions=cached.submissions;this.sourceEditor=editor;
+    const remembered=this.comments.find(comment=>comment.id===this.composers[documentKey(this.selection.owner,artifact.id)]&&comment.status==='open');
+    const row=this.drafts.select(this.selection.owner,artifact,remembered??null);row.title=this.selection.title;
+    this.editKey=row.key;this.composer.set_value(row.text);this.watchDocument(artifact,cx);
   }
   refreshTasks(cx) {
     const token=this.context&&{...this.context},selection=this.selection,request=this.taskLoadId=(this.taskLoadId??0)+1;
@@ -114,10 +136,10 @@ export default class Plan extends View {
       const response=await this.client.call('read',{session:selection.owner,proof:selection.proof,id:token.artifactId});
       if(this.closed||request!==this.taskLoadId||!acceptPlanLoad(this.context,token))return;
       const document=response.value;
-      if(!response.ok||!decodeArtifact(document?.artifact).ok||sessionKey(document.artifact.session)!==token.ownerKey||document.artifact.id!==token.artifactId)return;
+      if(!response.ok||!decodeArtifact(document?.artifact).ok||sessionKey(document.artifact.session)!==token.ownerKey||document.artifact.id!==token.artifactId){this.taskRevision=undefined;return;}
       if(document.state!=='ready'||document.artifact.hash!==this.document?.artifact.hash){
         this.preview=null;this.context={...this.context,loadId:++this.loadId};this.load(cx);
-      } else this.document={...this.document,tasks:document.tasks};
+      } else {this.document={...this.document,tasks:document.tasks};this.cacheCurrentPlan();}
       cx.notify();
     });
   }
@@ -128,7 +150,9 @@ export default class Plan extends View {
     if(this.document?.artifact.id!==artifact.id||sessionKey(this.document.artifact.session)!==token.ownerKey){this.document=null;this.comments=[];this.sections=[];this.editKey=null;}
     cx.spawn(async cx=>{
       const scope={session:selection.owner,proof:selection.proof,artifactId:artifact.id};
-      const [source,review]=await Promise.all([this.client.call('read',{...scope,id:artifact.id}),this.client.call('comments',scope)]);
+      const source=await this.client.call('read',{...scope,id:artifact.id,review:true});
+      const bundled=source.ok&&source.value?.review&&typeof source.value.review==='object'&&!Array.isArray(source.value.review);
+      const review=bundled?{ok:true,value:source.value.review}:await this.client.call('comments',scope);
       if(!acceptPlanLoad(this.context,token)||this.closed)return;
       if(source.ok&&decodeArtifact(source.value?.artifact).ok&&sessionKey(source.value.artifact.session)===token.ownerKey&&source.value.artifact.id===token.artifactId
         &&['ready','missing','needs-verification','superseded','changed'].includes(source.value.state)
@@ -148,7 +172,7 @@ export default class Plan extends View {
       this.delivery=this.deliveries.get(key)??this.submissions[0]?.delivery??null;
       const remembered=this.comments.find(comment=>comment.id===this.composers[key]&&comment.status==='open');
       const row=this.drafts.select(selection.owner,currentArtifact,remembered??null);row.title=selection.title;
-      this.editKey=row.key;this.composer.set_value(row.text);this.loading=false;this.publishErrors();cx.notify();
+      this.editKey=row.key;this.composer.set_value(row.text);this.loading=false;this.cacheCurrentPlan();this.publishErrors();cx.notify();
     });
   }
   watchDocument(artifact,cx) {
@@ -358,6 +382,7 @@ export default class Plan extends View {
           .tooltip(`${owner.id} · ${owner.authority} · ${owner.host}`).child(recovery?row.title:this.selection.title))
         .when(Boolean(artifact),part=>part.child(div().text_size(11).text_color(t.muted).truncate().tooltip(`${artifact.path}\n${artifact.host} · SHA-256 ${artifact.hash}`).child(`${label} · ${basename(artifact.path)}`)))))
       .when(Boolean(failure),el=>el.child(div().px(12).py(8).text_size(12).text_color(t.blocked).child(failure)))
+      .when(ready&&this.loading,el=>el.child(div().px(12).py(4).text_size(11).text_color(t.muted).child('Checking latest revision…')))
       .when(!recovery&&this.activeTab==='tasks'&&ready,el=>el.child(renderTasks({value:this.document.tasks,collapsed:this.collapsedPhases,t,button:this.button.bind(this),
         onToggle:(id,cx)=>{if(this.collapsedPhases.has(id))this.collapsedPhases.delete(id);else this.collapsedPhases.add(id);cx.notify();},onSection:(phase,cx)=>this.showSection(phase,cx)})))
       .when(!recovery&&(this.activeTab==='plan'||!ready),el=>el.child(v_flex().id('plan-reader').flex_1().min_h(90).min_w(0)
@@ -385,7 +410,7 @@ export default class Plan extends View {
           .when(Boolean(row.error&&!row.conflict),part=>part.child(h_flex().gap(6).child(this.button('plan-retry-save','Retry saving',cx=>{cx.spawn(async cx=>{await this.drafts.retry(row.key);this.rememberComposers();this.publishErrors();cx.notify();});},t))
             .child(this.button('plan-copy-draft','Copy draft',cx=>cx.write_to_clipboard(row.text),t)))))
         .child(h_flex().gap(6).items_center().child(this.button('plan-copy-review',recovery?'Copy draft':'Copy review',cx=>recovery?cx.write_to_clipboard(row.text):this.prepareReview(cx,true),t))
-          .child(this.button('plan-send-review','Send review',cx=>this.prepareReview(cx),t,!ready||!this.selection?.capabilities.send||this.sending||Boolean(recovery))))
+          .child(this.button('plan-send-review','Send review',cx=>this.prepareReview(cx),t,!ready||this.loading||!this.selection?.capabilities.send||this.sending||Boolean(recovery))))
         .when(!recovery&&!this.selection?.capabilities.send,part=>part.child(div().text_size(11).text_color(t.muted).child('Agent delivery is not verified. Copy review is available.')))
         .when(Boolean(this.delivery),part=>part.child(div().text_size(11).text_color(t.muted).child(statusLabel[this.delivery.state]??'Delivery unavailable')))
         .when(Boolean(!recovery&&this.delivery&&['pending','sending','unknown'].includes(this.delivery.state)),part=>part.child(this.button('plan-check-review','Check status',cx=>this.checkReceipt(cx),t)))

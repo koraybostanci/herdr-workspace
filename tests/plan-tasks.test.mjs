@@ -6,6 +6,9 @@ import { writeFile } from 'node:fs/promises';
 import { v2Fixture } from './helpers/v2-fixtures.mjs';
 import { indexSections, registerArtifact } from '../integrations/session-metadata/src/plans/artifacts.mjs';
 import { createPlanRuntime } from '../integrations/session-metadata/src/plans/runtime.mjs';
+import { publishPlanView } from '../integrations/session-metadata/src/plans/bridge.mjs';
+import { createBindingLifecycle } from '../integrations/session-metadata/src/binding-lifecycle.mjs';
+import { bindingKey } from '../integrations/session-metadata/src/protocol.mjs';
 
 const api=await import('../integrations/session-metadata/src/plans/tasks.mjs').catch(error=>{if(error.code!=='ERR_MODULE_NOT_FOUND')throw error;return {};});
 const hash=text=>createHash('sha256').update(text).digest('hex');
@@ -98,9 +101,10 @@ test('helper read includes phase-aware tasks and update-tasks uses the owned pri
   runtime.lifecycle.verify=async()=>true;
   const updated=await runtime.bridge.handle({op:'update-tasks',payload:snapshot(f,[task('a','Task 1: Schema','completed')])});
   assert.equal(updated.ok,true);
-  const result=await runtime.bridge.handle({op:'read',payload:{session:f.session,proof:f.proof,id:f.artifact.id}});
+  const result=await runtime.bridge.handle({op:'read',payload:{session:f.session,proof:f.proof,id:f.artifact.id,review:true}});
   assert.equal(result.ok,true);assert.equal(result.value.tasks.phases[0].tasks[0].status,'completed');
   assert.deepEqual(result.value.artifact,f.artifact);
+  assert.deepEqual(result.value.review,{comments:[],conflicts:[],submissions:[]});
 });
 
 test('unlinked evidence never erases an explicit Markdown parent or phase status',async t=>{
@@ -117,4 +121,14 @@ test('list-indented fenced examples cannot complete their containing task or cre
 test('HTML figure examples cannot create tasks or phase headings',()=>{
   const result=outline('# Plan\n<figure>\n## Phase 9: Example\n- [x] HTML example\n</figure>\n\n- [ ] Actual task\n');
   assert.equal(result.phases.length,0);assert.deepEqual(result.tasks.map(task=>[task.title,task.status]),[['Actual task','pending']]);
+});
+
+test('task publication exposes a session-scoped revision independent of global heartbeat sequence',async t=>{
+  const f=await fixture(t);createBindingLifecycle(f.db,f);
+  f.db.sql.prepare('INSERT INTO channel_bindings VALUES (?,?,?,?)').run('plan',bindingKey(f.proof),JSON.stringify(f.proof),'active');
+  const runtime={...f,appHome:join(f.root,'app')},before=await publishPlanView(runtime);
+  assert.equal(before.entries[0].taskRevision,null);
+  await api.recordTaskSnapshot(snapshot(f,[task('a','Task 1: Schema','in_progress')]),f);
+  const changed=await publishPlanView(runtime),heartbeat=await publishPlanView(runtime);
+  assert.equal(changed.entries[0].taskRevision,1000);assert.equal(heartbeat.entries[0].taskRevision,1000);assert.notEqual(heartbeat.sequence,changed.sequence);
 });
