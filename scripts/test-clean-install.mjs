@@ -2,7 +2,7 @@
 // Clean-export installation proof. Installs an exported copy of the bundle into a fresh HOME against a synthetic
 // Herdr app home, using a hermetic PATH. It never reads the developer's configuration, state or credentials.
 import { createHash } from "node:crypto";
-import { chmod, cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -11,7 +11,6 @@ import { assetRefsOf, expandInclude, importsOf, loadBundle } from "../src/bundle
 
 const SOURCE_CHECKOUT = fileURLToPath(new URL("../", import.meta.url)).replace(/\/$/, "");
 const SKIP = new Set(["node_modules"]);
-const SESSION = { host: "local", authority: "local", harness: "opencode-v2", id: "ses_clean_install" };
 const exists = async path => lstat(path).then(() => true, () => false);
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -72,7 +71,7 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
   const fixtureHome = await realpath(await mkdtemp(join(tmpRoot, "clean-")));
   const appHome = join(fixtureHome, ".config/herdr-app"), stateRoot = join(fixtureHome, ".local/state/herdr-agent-metadata");
   const opencodePath = join(fixtureHome, ".config/opencode/cli.json"), claudePath = join(fixtureHome, ".claude/settings.json");
-  const bin = join(fixtureHome, "fixture-bin"), hcState = join(bin, "hc-state.json");
+  const bin = join(fixtureHome, "fixture-bin");
   const checks = [], commands = [], warnings = [], out = [], err = [];
   const check = async (name, action) => {
     try { const detail = await action(); checks.push({ name, ok: detail === undefined || detail === true || (detail && detail.ok !== false), ...(typeof detail === "string" ? { detail } : {}) }); }
@@ -87,15 +86,6 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
   if (npmBin) await symlink(npmBin, join(bin, "npm"));
   const stub = (name, body) => writeFile(join(bin, name), `#!${process.execPath}\n${body}\n`, { mode: 0o755 });
   await stub("herdr-app", "console.log('herdr-app 0.1.9')");
-  await stub("hc", [
-    "const fs=require('fs');const f=process.env.HC_FIXTURE_STATE;const a=process.argv.slice(2);",
-    "if(!f)process.exit(1);const s=JSON.parse(fs.readFileSync(f,'utf8'));",
-    "if(a[0]==='get'){process.stdout.write(JSON.stringify(s));}",
-    "else if(a[0]==='label'){const i=a[2].indexOf('=');const k=a[2].slice(0,i),v=a[2].slice(i+1);if(v==='')delete s.labels[k];else s.labels[k]=v;fs.writeFileSync(f,JSON.stringify(s));}",
-    "else process.exit(1);",
-  ].join("\n"));
-  await writeFile(hcState, JSON.stringify({ state: "live", created_ms: 100, pid: 1, foreground: { pid: process.pid }, labels: { "herdr.space": "space-clean", "herdr.tab": "tab-clean" } }));
-  await chmod(hcState, 0o600);
   const cleanEnv = {
     HOME: fixtureHome, PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`, LANG: "C.UTF-8", TMPDIR: join(fixtureHome, "tmp"),
     npm_config_cache: join(tmpRoot, "npm-cache"), npm_config_update_notifier: "false", npm_config_audit: "false", npm_config_fund: "false", npm_config_prefer_offline: "true",
@@ -192,7 +182,7 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
       }
       for (const ref of assetRefsOf(text)) if (!ref.includes("*") && !(await exists(join(appHome, ref)))) problems.push(`${path} asset ${ref}`);
     }
-    const descriptor = JSON.parse(await readFile(join(appHome, "data/session-plans/runtime.json"), "utf8"));
+    const descriptor = JSON.parse(await readFile(join(appHome, "data/space-agents/runtime.json"), "utf8"));
     if (!descriptor.helperPath.startsWith(releaseDir + "/")) problems.push("descriptor outside release");
     if (problems.length) fail(problems.slice(0, 6).join("; "));
   });
@@ -203,27 +193,17 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
     if (result.code !== 0) fail(`doctor exited ${result.code}: ${result.stdout.split("\n").filter(l => l.startsWith("FAIL")).join("; ")}`);
   });
 
-  await check("installed helper registers and reads a synthetic plan", async () => {
+  await check("installed helper reads metadata without Plan storage", async () => {
     if (!installed) fail("not installed");
-    const descriptor = JSON.parse(await readFile(join(appHome, "data/session-plans/runtime.json"), "utf8"));
-    const helperEnv = { HC_TERMINAL_ID: "t-clean", HC_SESSION: "clean", HC_FIXTURE_STATE: hcState };
-    const rpc = async (op, payload) => {
-      const result = await run(descriptor.node, [descriptor.helperPath, "rpc", "--app-home", appHome, "--state-root", stateRoot], { cwd: appHome, env: helperEnv, input: JSON.stringify({ op, payload }) });
-      let value; try { value = JSON.parse(result.stdout); } catch { fail(`${op}: no JSON from helper`); }
-      if (!value.ok) fail(`${op}: ${value.reason}`);
-      return value.value;
-    };
-    const planPath = join(fixtureHome, "plans/synthetic-plan.md");
-    await mkdir(dirname(planPath), { recursive: true });
-    await writeFile(planPath, "# Synthetic plan\n\nSTEP-ONE clean install proof.\n");
-    await rpc("init", {});
-    const reservation = await rpc("owner-reserve", { session: SESSION, expectedGeneration: null });
-    if (!reservation) fail("owner reservation refused");
-    const proof = await rpc("owner-commit", { reservation, session: SESSION, providerVersion: "2.clean" });
-    const artifact = await rpc("register", { session: SESSION, proof, path: planPath, kind: "design", source: "explicit" });
-    const read = await rpc("read", { session: SESSION, id: artifact.id, proof });
-    if (read.state !== "ready" || !read.text.includes("STEP-ONE")) fail(`plan not readable (${read.state})`);
-    if (!(await exists(join(stateRoot, "v2/state.sqlite")))) fail("Plan store missing");
+    const descriptor = JSON.parse(await readFile(join(appHome, "data/space-agents/runtime.json"), "utf8"));
+    const result = await run(descriptor.node, [descriptor.helperPath, "snapshot", "--app-home", appHome, "--state-root", stateRoot], { cwd: appHome });
+    const value = JSON.parse(result.stdout);
+    if (result.code !== 0 || value.owner !== "herdr-session-metadata" || !Array.isArray(value.entries)) fail("metadata snapshot unavailable");
+    for (const path of ["mods/plan/main.js", "data/session-plans/runtime.json"]) if (await exists(join(appHome, path))) fail(`${path} was installed`);
+    if (await exists(join(stateRoot, "v2"))) fail("Plan storage was created");
+    // Existing review data from an older installation must still survive uninstall.
+    await mkdir(join(stateRoot, "v2"));
+    await writeFile(join(stateRoot, "v2/state.sqlite"), "synthetic legacy reviews");
   });
 
   await check("no references to the source checkout", async () => {
@@ -245,7 +225,7 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
     if (!installed) fail("not installed");
     const result = await cliRun(["uninstall"]);
     if (result.code !== 0) fail(`uninstall exited ${result.code}: ${result.stderr.trim().slice(0, 200)}`);
-    for (const path of ["mods/plan/main.js", "mods/space-agents/main.js", "layouts/herdr-workspace.json", "data/session-plans/runtime.json"]) {
+    for (const path of ["mods/session-tabs/main.js", "mods/space-agents/main.js", "layouts/herdr-workspace.json", "data/space-agents/runtime.json"]) {
       if (await exists(join(appHome, path))) fail(`${path} was not removed`);
     }
   });

@@ -63,14 +63,14 @@ export default class SpaceAgents extends View {
     this.refreshingMetadata = true;
     cx.spawn(async cx => {
       try {
-        const home = appHome(), raw = await readTextFile(`${home}/data/session-plans/runtime.json`);
+        const home = appHome(), raw = await readTextFile(`${home}/data/space-agents/runtime.json`);
         if (raw) {
           const runtime = JSON.parse(raw), prefix = `${home}/integrations/session-metadata/releases/`;
           const absolute = value => typeof value === "string" && /^(?:\/|[A-Za-z]:[\\/])/.test(value) && !/[\x00-\x1f\x7f]/.test(value);
           if (runtime?.owner !== "herdr-session-metadata" || runtime.schema !== 1 || !absolute(runtime.node) || !absolute(runtime.stateRoot)
             || typeof runtime.helperPath !== "string" || !runtime.helperPath.startsWith(prefix)
-            || !/^[a-f0-9-]{36}\/bin\/herdr-plan\.mjs$/.test(runtime.helperPath.slice(prefix.length))) throw Error("Metadata runtime unavailable");
-          await exec(runtime.node, [runtime.helperPath.replace(/herdr-plan\.mjs$/, "herdr-session-meta.mjs"), "refresh-view", "--json",
+            || !/^[a-f0-9-]{36}\/bin\/herdr-session-meta\.mjs$/.test(runtime.helperPath.slice(prefix.length))) throw Error("Metadata runtime unavailable");
+          await exec(runtime.node, [runtime.helperPath, "refresh-view", "--json",
             "--app-home", home, "--state-root", runtime.stateRoot]);
         } else await exec("node", [`${home}/integrations/session-metadata/bin/herdr-session-meta.mjs`, "refresh-view", "--json"]);
         this.sessionView = JSON.parse(await readTextFile(`${appHome()}/data/space-agents/session-view.json`) ?? "null");

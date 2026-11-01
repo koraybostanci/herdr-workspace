@@ -16,7 +16,7 @@ test("fresh_install_without_existing_hooks", async t => {
   const receipt = await applyInstall(await planOf(h), { run: h.run });
   assert.equal(receipt.phase, "installed");
   const plan = await planOf(h);
-  for (const name of ["space-agents", "compact-spaces", "session-tabs", "plan"]) assert.ok(await stat(join(h.appHome, "mods", name, "main.js")));
+  for (const name of ["space-agents", "compact-spaces", "session-tabs"]) assert.ok(await stat(join(h.appHome, "mods", name, "main.js")));
   assert.ok(await stat(join(h.appHome, "layouts/herdr-workspace.json")));
   // The layout is installed but never selected.
   assert.equal(await h.read(join(h.appHome, "shared.json")), null);
@@ -24,37 +24,22 @@ test("fresh_install_without_existing_hooks", async t => {
   for (const event of ["SessionStart", "UserPromptSubmit", "PostToolUse", "CwdChanged", "Stop", "SessionEnd"]) {
     const [group] = claude.hooks[event];
     assert.equal(group.hooks[0].command, NODE);
-    assert.deepEqual(group.hooks[0].args, [join(plan.roots.releaseDir, "bin/herdr-session-meta.mjs"), "hook", "claude", "--plans"]);
+    assert.deepEqual(group.hooks[0].args, [join(plan.roots.releaseDir, "bin/herdr-session-meta.mjs"), "hook", "claude"]);
   }
   const opencode = JSON.parse(await h.read(h.opencodePath));
-  assert.deepEqual(opencode.plugins, [{ package: plan.roots.releaseDir, options: { planNode: NODE, planAppHome: h.appHome, planStateRoot: h.stateRoot } }]);
+  assert.deepEqual(opencode.plugins, [{ package: plan.roots.releaseDir, options: { appHome: h.appHome, stateRoot: h.stateRoot } }]);
   // Dependencies come from the lockfile in the release, with no lifecycle scripts.
   const npm = h.run.calls.filter(c => c.command === "npm" && c.args[0] === "ci");
   assert.equal(npm.length, 1);
   assert.deepEqual(npm[0].args.slice(0, 2), ["ci", "--ignore-scripts"]);
   assert.equal(npm[0].cwd, plan.roots.releaseDir);
-  // Metadata owner root is initialised through its API, so Plan's nested v2 store can be created next.
+  // Metadata owner root is initialised through its API.
   assert.equal(JSON.parse(await h.read(join(h.stateRoot, "owner.json"))).owner, "herdr-session-metadata");
-  const { createPlanRuntime } = await import(join(plan.roots.releaseDir, "src/plans/runtime.mjs"));
-  const runtime = createPlanRuntime({ HOME: h.home, HERDR_APP_HOME: h.appHome, HERDR_METADATA_STATE_DIR: h.stateRoot });
-  runtime.db.close();
-  assert.ok(await stat(join(h.stateRoot, "v2")));
   // Private modes.
   assert.equal(await mode(plan.roots.releaseDir), 0o700);
   assert.equal(await mode(join(plan.roots.releaseDir, "build-manifest.json")), 0o600);
   assert.equal(await mode(plan.roots.journalPath), 0o600);
-  assert.equal(await mode(join(h.appHome, "data/session-plans/runtime.json")), 0o600);
-});
-
-test("a plan store created before the metadata owner is initialised is rejected by the owner guard", async t => {
-  const h = await installHome(t);
-  await applyInstall(await planOf(h, { configureHarnesses: [] }), { run: h.run });
-  const { releaseDir } = (await planOf(h)).roots;
-  const { createPlanRuntime } = await import(join(releaseDir, "src/plans/runtime.mjs"));
-  const { createStore } = await import(join(releaseDir, "src/store.mjs"));
-  const wrongOrder = join(h.home, "other-state");
-  createPlanRuntime({ HOME: h.home, HERDR_APP_HOME: h.appHome, HERDR_METADATA_STATE_DIR: wrongOrder }).db.close();
-  await assert.rejects(createStore({ root: wrongOrder, viewFile: join(h.home, "v.json") }).listBindings(), /foreign state directory/i);
+  assert.equal(await mode(join(h.appHome, "data/space-agents/runtime.json")), 0o600);
 });
 
 test("repeat_install_is_idempotent", async t => {
@@ -122,8 +107,8 @@ test("failed dependency install keeps recovery evidence and never reaches settin
   const plan = await planOf(h);
   await assert.rejects(applyInstall(plan, { run: h.run }), /dependency-install-failed/);
   assert.equal(await h.read(h.claudePath), null);
-  assert.equal(await h.read(join(h.appHome, "data/session-plans/runtime.json")), null, "descriptor not switched");
-  assert.equal(await h.read(join(h.appHome, "mods/plan/main.js")), null);
+  assert.equal(await h.read(join(h.appHome, "data/space-agents/runtime.json")), null, "descriptor not switched");
+  assert.equal(await h.read(join(h.appHome, "mods/session-tabs/main.js")), null);
   const journal = JSON.parse(await h.read(plan.roots.journalPath));
   assert.equal(journal.phase, "applying");
   assert.ok(journal.steps.some(s => s.kind === "file" && s.applied), "staged release is recorded as owned");
@@ -147,7 +132,7 @@ test("uninstall_preserves_later_edits_and_reviews", async t => {
   await writeFile(h.claudePath, JSON.stringify(later, null, 2) + "\n");
   await writeFile(join(h.appHome, "mods/compact-spaces/main.js"), "// user tweak\n");
   const oc = parseJsonc(await h.read(h.opencodePath));
-  oc.plugins[1].options.planNode = "/changed/by/user/node";
+  oc.plugins[1].options.stateRoot = "/changed/by/user/state";
   await writeFile(h.opencodePath, JSON.stringify(oc, null, 2) + "\n");
 
   const result = await uninstall(receipt);
@@ -164,10 +149,10 @@ test("uninstall_preserves_later_edits_and_reviews", async t => {
   assert.ok(result.kept.some(k => k.path === h.opencodePath && k.reason === "modified"));
   assert.equal(await h.read(join(h.stateRoot, "v2/state.sqlite")), "synthetic review data");
   assert.ok(await h.read(join(h.stateRoot, "owner.json")), "metadata state is retained");
-  assert.equal(await h.read(join(h.appHome, "mods/plan/main.js")), null, "unchanged owned files are removed");
+  assert.equal(await h.read(join(h.appHome, "mods/session-tabs/main.js")), null, "unchanged owned files are removed");
   assert.equal(await h.read(join(h.appHome, "layouts/herdr-workspace.json")), null);
-  assert.equal(await h.read(join(h.appHome, "data/session-plans/runtime.json")), null);
-  assert.equal(await h.read(join(releaseDir, "bin/herdr-plan.mjs")), null);
+  assert.equal(await h.read(join(h.appHome, "data/space-agents/runtime.json")), null);
+  assert.equal(await h.read(join(releaseDir, "bin/herdr-session-meta.mjs")), null);
 });
 
 test("uninstall of a clean install restores the original settings byte for byte", async t => {
@@ -179,7 +164,7 @@ test("uninstall of a clean install restores the original settings byte for byte"
   assert.equal(await h.read(h.opencodePath), OPENCODE_SETTINGS);
   assert.equal(await h.read(h.claudePath), CLAUDE_SETTINGS);
   assert.deepEqual((await h.list(h.appHome)).filter(p => !p.startsWith("data") && !p.startsWith("mods/") && !p.startsWith("layouts/") && !p.startsWith("integrations/")).length >= 0, true);
-  assert.equal(await h.read(join(h.appHome, "mods/plan/main.js")), null);
+  assert.equal(await h.read(join(h.appHome, "mods/session-tabs/main.js")), null);
 });
 
 test("uninstall removes settings files it created", async t => {

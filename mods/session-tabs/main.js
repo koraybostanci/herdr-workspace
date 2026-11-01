@@ -1,8 +1,15 @@
 import { View, div, svg, image } from "gpui-kit";
-import { h_flex, Button } from "gpui-base";
-import { spaces, panes, run, openOverlay, theme, window, shared, setShared, layout, settings } from "herdr";
-import { PlanController, legacyPanels } from "./plan-controller.js";
-import { planAvailable } from "./plan-model.js";
+import { h_flex } from "gpui-base";
+import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings, appHome, readTextFile } from "herdr";
+
+async function legacyPanels() {
+  try {
+    const stored = JSON.parse(await readTextFile(appHome() + "/data/tabs/store.json") ?? "null");
+    const value = JSON.parse(stored?.panels ?? "null");
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter(([_id, choice]) => choice === null || ["files", "changes"].includes(choice)));
+  } catch { return {}; }
+}
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -17,9 +24,6 @@ export default class Tabs extends View {
   init(_props, cx) {
     this.pressed = null;
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
-    this.planFocus = cx.focus_handle();
-    this.recoveryFocus = cx.focus_handle();
-    this.planController = new PlanController(); this.planController.init(cx);
     this.prefsReady = localStorage.getItem("panels") !== null;
     if (!this.prefsReady) cx.spawn(async cx => {
       this.panels = { ...await legacyPanels(), ...this.panels }; this.prefsReady = true;
@@ -31,7 +35,6 @@ export default class Tabs extends View {
   // (closed if it never had one), and opening or closing it records it.
   syncPanel(space, panel, body, enabled) {
     if (!space || !panel || !this.prefsReady) return;
-    if (this.space === undefined && body?.active === "plan") { this.space = space.id; return; }
     const now = panel.hidden ? null : body?.active ?? null;
     if (space.id !== this.space) {
       const first = this.space === undefined;
@@ -51,7 +54,6 @@ export default class Tabs extends View {
       if (this.pending.want !== now && Date.now() < this.pending.until) return;
       this.pending = null;
     }
-    if (body?.active === "plan") return; // Plan is session-specific; never overwrite Files/Changes memory.
     if (this.panels[space.id] === now) return;
     this.panels[space.id] = now;
     localStorage.setItem("panels", JSON.stringify(this.panels));
@@ -90,14 +92,6 @@ export default class Tabs extends View {
       : 10;
     const panel = find(root, "panel"), body = find(root, "panel-body");
     const enabled = shared("workspace.panels") ?? ["files", "changes"];
-    const selectedPlan = this.planController.sync();
-    const hasPlan = Boolean(selectedPlan && planAvailable(selectedPlan.owner, selectedPlan.artifacts));
-    const request = shared("session-plans.recovery");
-    const recovery = request && Date.now() >= (request.seenAt ?? 0) && Date.now() - (request.seenAt ?? 0) < 45000;
-    const failures = shared("session-plans.draft-errors");
-    const failedDraft = Array.isArray(failures) ? failures.find(item => item && typeof item.instanceId === "string" && typeof item.rowKey === "string"
-      && Date.now() >= item.seenAt && Date.now() - item.seenAt < 45000) : null;
-    if (this.planController.ready && body?.active === "plan" && !panel?.hidden && !hasPlan && !recovery) run("layout.hide", { id: "panel" });
     this.syncPanel(space, panel, body, enabled);
     const panelButton = (id, label, icon) => {
       const on = panel && !panel.hidden && body?.active === id;
@@ -105,7 +99,6 @@ export default class Tabs extends View {
         .text_size(12).bg(on ? t.selected : t.chrome).text_color(on ? t.foreground : t.muted)
         .hover(s => s.bg(t.hover)).on_mouse_down("left", stop)
         .on_click(() => {
-          setShared("session-plans.recovery", null);
           this.panels[space.id] = on ? null : id; localStorage.setItem("panels", JSON.stringify(this.panels));
           if (on) run("layout.hide", { id: "panel" });
           else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
@@ -118,24 +111,6 @@ export default class Tabs extends View {
       .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
-      .when(hasPlan, el => el.child(Button.new("panel-plan").h(26).px(8).gap(5).flex_none().items_center().rounded(6)
-        .border(1).border_color(t.chrome).text_size(12).text_color(t.muted)
-        .bg(panel && !panel.hidden && body?.active === "plan" ? t.selected : t.chrome)
-        .hover(s => s.bg(t.hover).text_color(t.foreground)).focus(s => s.border_color(t.accent)).track_focus(this.planFocus)
-        .accessibility_label(`Open plan for ${selectedPlan?.title ?? "selected agent"}`).tooltip("Read and comment on this session's plan")
-        .on_mouse_down("left", stop).on_click(() => {
-          if (!this.planController.matches(selectedPlan)) return;
-          setShared("session-plans.recovery", null);
-          if (!panel?.hidden && body?.active === "plan") run("layout.hide", { id: "panel" });
-          else { run("pane.focus", { terminal: selectedPlan.address }); run("layout.select", { stack: "panel-body", child: "plan" }); run("layout.show", { id: "panel" }); }
-        }).child(svg("mods/plan/plan.svg").size(14)).child("Plan")))
-      .when(Boolean(failedDraft), el => el.child(Button.new("plan-draft-recovery").h(26).px(8).rounded(5).border(1).border_color(t.border)
-        .text_size(12).text_color(t.blocked).hover(s => s.bg(t.hover)).focus(s => s.border_color(t.accent)).track_focus(this.recoveryFocus)
-        .accessibility_label("Recover unsaved review draft").tooltip("A previous session's draft was not saved. Retry or copy it.")
-        .on_mouse_down("left", stop).on_click(() => {
-          setShared("session-plans.recovery", { instanceId: failedDraft.instanceId, rowKey: failedDraft.rowKey, seenAt: Date.now() });
-          run("layout.select", { stack: "panel-body", child: "plan" }); run("layout.show", { id: "panel" });
-        }).child("Unsaved review")))
       .when(window()?.buttons, el => el.child(button("minimize", "−", () => run("window.minimize")))
         .child(button("maximize", "□", () => run("window.maximize")))
         .child(button("close-window", svg("mods/pane/close.svg").size(13), () => run("window.close"))));

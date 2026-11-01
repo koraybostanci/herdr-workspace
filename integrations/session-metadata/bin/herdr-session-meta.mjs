@@ -125,23 +125,12 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
     });
   } else if (command === "hook" && argv[1] === "claude") {
     const input = JSON.parse(await stdin(runtime));
-    let planRuntime, plans;
-    if (argv.includes("--plans")) {
-      try {
-        const { createPlanRuntime } = await import("../src/plans/runtime.mjs");
-        const { createClaudePlanObserver } = await import("../claude/plans.mjs");
-        planRuntime = createPlanRuntime(runtime.env);
-        plans = createClaudePlanObserver({ rpc: request => planRuntime.bridge.handle(request), sdk: runtime.sdk ?? (() => import("@anthropic-ai/claude-agent-sdk")),
-          scope: { host: runtime.env.HERDR_METADATA_HOST ?? "local", authority: "claude" } });
-      } catch {} // Unsupported Plan capability does not affect existing metadata hooks.
-    }
     const { handleClaudeHook } = await import("../claude/adapter.mjs");
     const { applyObservation } = await import("../src/engine.mjs");
-    try { output = await handleClaudeHook(input, { ...runtime, plans, engine: runtime.engine ?? applyObservation, sdk: runtime.sdk ?? (() => import("@anthropic-ai/claude-agent-sdk")),
+    output = await handleClaudeHook(input, { ...runtime, engine: runtime.engine ?? applyObservation, sdk: runtime.sdk ?? (() => import("@anthropic-ai/claude-agent-sdk")),
       allowPaired: Boolean(runtime.env.HERDR_METADATA_HOST),
       pair: (token, live) => acceptPairing(token, live, { ...runtime, producerPid: process.ppid }),
-      validatePaired: b => ownerIsLive(b, runtime.run) }); }
-    finally { planRuntime?.db.close(); }
+      validatePaired: b => ownerIsLive(b, runtime.run) });
     if ((runtime.env.HC_TERMINAL_ID || runtime.env.HERDR_METADATA_HOST) && !input.agent_id) await notifyView(runtime);
   } else if (command === "register") {
     const input = JSON.parse(await new Promise(resolve => { let s = ""; process.stdin.setEncoding("utf8"); process.stdin.on("data", c => s += c); process.stdin.on("end", () => resolve(s)); }));

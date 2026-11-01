@@ -15,7 +15,7 @@ const planOf = (h, extra = {}) => planInstall({ bundle: h.bundle, sourceRoot: h.
 // A second bundle version: two mod files change, so the plan id changes while the helper release stays the same.
 async function v2Source(t) {
   const root = await exportBundle(t);
-  for (const f of ["mods/compact-spaces/main.js", "mods/plan/main.js"]) await writeFile(join(root, f), (await readFile(join(root, f), "utf8")) + "\n// v2\n");
+  for (const f of ["mods/compact-spaces/main.js", "mods/session-tabs/main.js"]) await writeFile(join(root, f), (await readFile(join(root, f), "utf8")) + "\n// v2\n");
   const bundle = JSON.parse(await readFile(join(root, "bundle.json"), "utf8"));
   bundle.files = await buildFileHashes(root, bundle.include);
   await writeFile(join(root, "bundle.json"), JSON.stringify(bundle, null, 2) + "\n");
@@ -31,7 +31,7 @@ test("uninstall tolerates URLs in later user settings and never gets stuck", asy
   const result = await uninstall(receipt);
   assert.equal(result.phase, "uninstalled");
   assert.equal(JSON.parse(await h.read(h.claudePath)).env.BASE, "https://example.test/v1");
-  assert.equal(await h.read(join(h.appHome, "mods/plan/main.js")), null);
+  assert.equal(await h.read(join(h.appHome, "mods/session-tabs/main.js")), null);
 });
 
 test("uninstall keeps a created settings file that gained a user comment", async t => {
@@ -61,12 +61,12 @@ test("an interrupted upgrade resumes instead of reporting its own files as forei
   await applyInstall(await planOf(h, { configureHarnesses: [] }), { run: h.run });
   const v2 = await v2Source(t);
   const plan2 = () => planOf(h, { bundle: v2.bundle, sourceRoot: v2.root, configureHarnesses: [] });
-  const crash = async (path, ...rest) => { if (path.endsWith("mods/plan/main.js")) throw new Error("simulated crash"); return writeGuarded(path, ...rest); };
+  const crash = async (path, ...rest) => { if (path.endsWith("mods/session-tabs/main.js")) throw new Error("simulated crash"); return writeGuarded(path, ...rest); };
   await assert.rejects(applyInstall(await plan2(), { run: h.run, writeText: crash }), /simulated crash/);
   const resumed = await plan2();
   assert.deepEqual(resumed.blockers, []);
   assert.equal((await applyInstall(resumed, { run: h.run })).phase, "installed");
-  assert.ok((await h.read(join(h.appHome, "mods/plan/main.js"))).endsWith("// v2\n"));
+  assert.ok((await h.read(join(h.appHome, "mods/session-tabs/main.js"))).endsWith("// v2\n"));
 });
 
 test("a foreign state root is refused before any write", async t => {
@@ -94,7 +94,7 @@ test("a symlinked destination folder is refused and never written through", asyn
   const elsewhere = join(h.home, "elsewhere");
   await mkdir(elsewhere, { recursive: true });
   await mkdir(join(h.appHome, "mods"), { recursive: true });
-  await symlink(elsewhere, join(h.appHome, "mods/plan"));
+  await symlink(elsewhere, join(h.appHome, "mods/session-tabs"));
   const plan = await planOf(h);
   assert.ok(plan.blockers.some(b => b.rule === "symlinked-path"), JSON.stringify(plan.blockers));
   await assert.rejects(applyInstall(plan, { run: h.run }), /install-blocked/);
@@ -121,10 +121,10 @@ test("doctor fails when an installed file is gone or changed", async t => {
     return { code, out: out.join("") };
   };
   assert.equal((await doctor()).code, 0);
-  await rm(join(h.appHome, "mods/plan/main.js"));
+  await rm(join(h.appHome, "mods/session-tabs/main.js"));
   const missing = await doctor();
   assert.equal(missing.code, 1);
-  assert.match(missing.out, /FAIL.*mods\/plan\/main\.js/);
+  assert.match(missing.out, /FAIL.*mods\/session-tabs\/main\.js/);
 });
 
 test("doctor fails when an owned settings entry was removed", async t => {

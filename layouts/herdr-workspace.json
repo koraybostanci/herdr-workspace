@@ -24,6 +24,7 @@
         {
           "id": "sidebar-lists",
           "type": "column",
+          "resizable": false,
           "children": [
             {
               "id": "spaces",
@@ -34,7 +35,8 @@
               "size": {
                 "px": 44
               },
-              "min": 44
+              "min": 44,
+              "max": 44
             },
             {
               "id": "agents",
@@ -139,13 +141,6 @@
                       "type": "block",
                       "content": {
                         "mod": "changes"
-                      }
-                    },
-                    {
-                      "id": "plan",
-                      "type": "block",
-                      "content": {
-                        "mod": "plan"
                       }
                     }
                   ],

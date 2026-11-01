@@ -17,7 +17,7 @@ test("default_plan_has_no_writes", async t => {
   assert.equal(plan.schema, 1);
   assert.equal(plan.owner, "herdr-workspace");
   assert.deepEqual(plan.blockers, []);
-  assert.ok(plan.files.length > 50);
+  assert.ok(plan.files.length > 30);
   assert.deepEqual([await h.list(h.home), await h.read(h.claudePath)], before);
   const out = [], err = [];
   const code = await runCli(["plan", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot });
@@ -34,12 +34,12 @@ test("generated paths come from the destination, never the source machine", asyn
   const plan = await planOf(h);
   for (const f of plan.files) assert.ok(f.dest.startsWith(h.appHome + "/"), f.dest);
   assert.match(plan.roots.releaseDir, /\/integrations\/session-metadata\/releases\/[a-f0-9-]{36}$/);
-  const descriptor = plan.files.find(f => f.dest.endsWith("data/session-plans/runtime.json"));
+  const descriptor = plan.files.find(f => f.dest.endsWith("data/space-agents/runtime.json"));
   const value = JSON.parse(descriptor.text);
   assert.deepEqual(Object.keys(value).sort(), ["buildHash", "helperPath", "node", "owner", "schema", "stateRoot"]);
   assert.equal(value.owner, "herdr-session-metadata");
   assert.equal(value.node, NODE);
-  assert.equal(value.helperPath, join(plan.roots.releaseDir, "bin/herdr-plan.mjs"));
+  assert.equal(value.helperPath, join(plan.roots.releaseDir, "bin/herdr-session-meta.mjs"));
   assert.equal(value.stateRoot, h.stateRoot);
   assert.ok(!JSON.stringify(plan).includes(h.sourceRoot), "no source-machine path in the plan");
 });
@@ -59,9 +59,9 @@ test("harness_setup_requires_opt_in", async t => {
 
 test("foreign_collision_has_no_writes", async t => {
   for (const [path, text, rule] of [
-    ["mods/plan/main.js", "// someone else's plan mod\n", "foreign-file"],
+    ["mods/session-tabs/main.js", "// someone else's tabs mod\n", "foreign-file"],
     ["layouts/herdr-workspace.json", "{\"id\":\"root\",\"mine\":true}\n", "foreign-file"],
-    ["data/session-plans/runtime.json", "{\"owner\":\"other\"}\n", "foreign-file"],
+    ["data/space-agents/runtime.json", "{\"owner\":\"other\"}\n", "foreign-file"],
   ]) {
     const h = await installHome(t);
     await h.write(join(h.appHome, path), text);
@@ -77,7 +77,7 @@ test("foreign_collision_has_no_writes", async t => {
 
 test("foreign collision can be adopted only with explicit opt-in, keeping a backup", async t => {
   const h = await installHome(t);
-  const mine = join(h.appHome, "mods/plan/main.js");
+  const mine = join(h.appHome, "mods/session-tabs/main.js");
   await h.write(mine, "// development copy\n");
   assert.ok((await planOf(h)).blockers.length);
   const plan = await planOf(h, { adopt: true });

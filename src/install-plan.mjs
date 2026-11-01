@@ -31,9 +31,9 @@ async function inspect(path) {
 
 function desiredEntries(name, { releaseDir, node, appHome, stateRoot }) {
   if (name === "opencode") {
-    return [{ at: ["plugins"], value: { package: releaseDir, options: { planNode: node, planAppHome: appHome, planStateRoot: stateRoot } } }];
+    return [{ at: ["plugins"], value: { package: releaseDir, options: { appHome, stateRoot } } }];
   }
-  const hook = { hooks: [{ type: "command", command: node, args: [join(releaseDir, "bin/herdr-session-meta.mjs"), "hook", "claude", "--plans"], timeout: 10, onFailure: "continue" }] };
+  const hook = { hooks: [{ type: "command", command: node, args: [join(releaseDir, "bin/herdr-session-meta.mjs"), "hook", "claude"], timeout: 10, onFailure: "continue" }] };
   return CLAUDE_EVENTS.map(event => ({ at: ["hooks", event], value: hook }));
 }
 
@@ -62,13 +62,13 @@ export async function planInstall({ bundle, sourceRoot, appHome, stateRoot, node
   const ownedConfig = new Map((owned?.steps ?? []).filter(s => s.kind === "config").map(s => [configKey(s.path, s.at), s]));
 
   const manifestText = JSON.stringify({ owner: HELPER_OWNER, schema: 1, protocol: 2, files: Object.fromEntries(entries), buildHash }, null, 2) + "\n";
-  const descriptorText = JSON.stringify({ schema: 1, owner: HELPER_OWNER, node, helperPath: join(releaseDir, "bin/herdr-plan.mjs"), stateRoot, buildHash }, null, 2) + "\n";
+  const descriptorText = JSON.stringify({ schema: 1, owner: HELPER_OWNER, node, helperPath: join(releaseDir, "bin/herdr-session-meta.mjs"), stateRoot, buildHash }, null, 2) + "\n";
   const wanted = [
     ...entries.map(([rel, hash]) => ({ group: "release", src: `${HELPER}/${rel}`, dest: join(releaseDir, rel), hash, mode: 0o600 })),
     { group: "release", src: null, dest: join(releaseDir, "build-manifest.json"), hash: hashOf(manifestText), text: manifestText, mode: 0o600 },
     ...Object.entries(bundle.files).filter(([path]) => /^(mods|layouts)\//.test(path)).sort(sortedBy)
       .map(([path, hash]) => ({ group: "host", src: path, dest: join(appHome, path), hash, mode: 0o644 })),
-    { group: "descriptor", src: null, dest: join(appHome, "data/session-plans/runtime.json"), hash: hashOf(descriptorText), text: descriptorText, mode: 0o600 },
+    { group: "descriptor", src: null, dest: join(appHome, "data/space-agents/runtime.json"), hash: hashOf(descriptorText), text: descriptorText, mode: 0o600 },
   ];
   const files = [];
   const reportedLinks = new Set();
@@ -90,6 +90,28 @@ export async function planInstall({ bundle, sourceRoot, appHome, stateRoot, node
     else if (adopt) action = "adopt";
     else { blockers.push({ rule: "foreign-file", path: file.dest }); action = "blocked"; }
     files.push({ ...file, action, beforeHash: current.hash ?? null });
+  }
+
+  const retired = new Set(["data/session-plans/runtime.json", ...["client.js", "protocol.js", "plan-controller.js", "plan-model.js"].map(name => "mods/session-tabs/" + name)].map(path => join(appHome, path)));
+  for (const step of owned?.steps ?? []) {
+    if (step.kind !== "file" || !(retired.has(step.dest) || step.dest.startsWith(join(appHome, "mods/plan") + "/"))) continue;
+    if (await linkBlocker(step.dest)) continue;
+    const current = await inspect(step.dest);
+    if (current.hash !== ABSENT && current.hash !== step.hash) {
+      warnings.push({ rule: "modified-retired-file", path: step.dest });
+      files.push({ group: "retired", dest: step.dest, action: "preserve" });
+      continue;
+    }
+    files.push({ group: "retired", dest: step.dest, action: "remove", beforeHash: step.hash, backup: step.backup });
+  }
+
+  const unselected = new Set();
+  for (const step of ownedConfig.values()) {
+    const selectedPath = harnesses[step.harness === "opencode" ? "opencodePath" : "claudePath"];
+    if (selected.includes(step.harness) && selectedPath === step.path || unselected.has(step.harness)) continue;
+    if (!step.value?.options?.planNode && !step.value?.hooks?.some(hook => hook.args?.includes("--plans"))) continue;
+    blockers.push({ rule: "plan-removal-needs-harness-upgrade", path: step.path, harness: step.harness });
+    unselected.add(step.harness);
   }
 
   const configEdits = [], configFiles = {};
@@ -118,6 +140,12 @@ export async function planInstall({ bundle, sourceRoot, appHome, stateRoot, node
         }
         configEdits.push(edit);
       }
+      const prefix = join(appHome, HELPER, "releases") + "/";
+      const remains = name === "opencode"
+        ? getAt(parseDoc(text), ["plugins"])?.some(entry => typeof entry?.package === "string" && entry.package.startsWith(prefix) && entry.options?.planNode)
+        : Object.values(parseDoc(text).hooks ?? {}).some(groups => Array.isArray(groups) && groups.some(group => group?.hooks?.some(hook =>
+          Array.isArray(hook.args) && typeof hook.args[0] === "string" && hook.args[0].startsWith(prefix) && hook.args.includes("--plans"))));
+      if (remains) blockers.push({ rule: "modified-plan-harness-entry", path, harness: name });
     } catch (e) {
       if (e.message !== "invalid-config") throw e;
       blockers.push({ rule: "invalid-config", path });

@@ -8,7 +8,6 @@ import { applyObservation } from "../src/engine.mjs";
 import { createOpenCodeAdapter, executionScope } from "./adapter.mjs";
 import { acceptPairing, ownerIsLive } from "../src/transport.mjs";
 import { watchMailbox } from "../src/pending.mjs";
-import { startOpenCodePlans } from "./plans.mjs";
 
 export default Plugin.define({
   id: "herdr.session-metadata",
@@ -17,9 +16,8 @@ export default Plugin.define({
     const scope = executionScope(process.argv, context.options ?? {});
     if (!scope) return () => {};
     if (scope.host === "local" && process.env.HERDR_METADATA_HOST) scope.host = process.env.HERDR_METADATA_HOST;
-    const runtime = createRuntime();
-    const stopPlans = await startOpenCodePlans(context, { node: context.options?.planNode, scope,
-      appHome: context.options?.planAppHome, stateRoot: context.options?.planStateRoot });
+    const runtime = createRuntime({ ...process.env, HERDR_APP_HOME: context.options?.appHome ?? process.env.HERDR_APP_HOME,
+      HERDR_METADATA_STATE_DIR: context.options?.stateRoot ?? process.env.HERDR_METADATA_STATE_DIR });
     let paired = null;
     const identity = {
       enabled: true,
@@ -59,7 +57,6 @@ export default Plugin.define({
       } }] }));
     let lastFingerprint = "";
     const request = () => {
-      stopPlans.onRouteChange?.();
       const route = context.ui.router.current();
       const id = route?.type === "session" ? route.sessionID : null;
       const info = id && context.data.session.get(id);
@@ -81,6 +78,6 @@ export default Plugin.define({
     const watcher = watch(runtime.root, (_kind, filename) => {
       if (filename === "activation.json") void adapter.refresh().catch(() => {});
     });
-    return async () => { clearInterval(reconcile); watcher.close(); stopMailbox(); stopEvents(); stopSlot(); await stopPlans(); await adapter.dispose(); };
+    return async () => { clearInterval(reconcile); watcher.close(); stopMailbox(); stopEvents(); stopSlot(); await adapter.dispose(); };
   },
 });

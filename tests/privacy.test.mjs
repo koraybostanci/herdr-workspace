@@ -68,9 +68,9 @@ test("synthetic_source_allowed", async (t) => {
 test("portable_tests_use_owned_temp_root", async (t) => {
   const root = await fixtureDir(t);
   const result = spawnSync(process.execPath, ["--input-type=module", "-e",
-    `import {scratch} from ${JSON.stringify(new URL("./helpers/v2-fixtures.mjs", import.meta.url).href)};
+    `import {testTmpRoot} from ${JSON.stringify(new URL("./helpers/tmp-root.mjs", import.meta.url).href)};
      import {scratch as s2} from ${JSON.stringify(new URL("./helpers/session-metadata-fixtures.mjs", import.meta.url).href)};
-     console.log(JSON.stringify([scratch,s2]));`],
+     console.log(JSON.stringify([testTmpRoot(),s2]));`],
     { cwd: root, env: { ...process.env, HERDR_WORKSPACE_TEST_TMPDIR: root }, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   const [a, b] = JSON.parse(result.stdout);

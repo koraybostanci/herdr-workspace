@@ -85,6 +85,16 @@ test("an ordinary CLI hook outside Herdr performs no state writes", async t => {
   assert.deepEqual(await readdir(f.root), []);
 });
 
+test('legacy --plans hooks do not start Plan storage or observers',async t=>{
+  const f=await isolatedFixture();t.after(f.cleanup);
+  const r=spawnSync(process.execPath,['integrations/session-metadata/bin/herdr-session-meta.mjs','hook','claude','--plans'],{
+    cwd:projectRoot,encoding:'utf8',input:JSON.stringify({hook_event_name:'UserPromptSubmit',session_id:id,cwd:f.root,prompt:'private'}),
+    env:{...process.env,HC_TERMINAL_ID:'',HERDR_METADATA_HOST:'',HERDR_METADATA_STATE_DIR:f.root,HERDR_APP_HOME:join(f.root,'app')},
+  });
+  assert.equal(r.status,0);assert.deepEqual(JSON.parse(r.stdout),{});
+  assert.deepEqual(await readdir(f.root),[]);
+});
+
 test("clear/fork registration cannot be undone by a late tool hook from the previous session", async t => {
   const f = await fixture(t);
   await handleClaudeHook(f.input, f.deps);

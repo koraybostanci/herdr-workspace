@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Installable Herdr workspace: Spaces dropdown, agent cards, session tabs and Plan review.",
+  "description": "Installable Herdr workspace: Spaces dropdown, agent cards and session tabs.",
   "engines": {
     "node": ">=26"
   },
