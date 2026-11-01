@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { execFile, spawn } from "node:child_process";
 import { join, resolve, dirname, isAbsolute } from "node:path";
-import { readFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createStore, readJson, atomicJson } from "../src/store.mjs";
 import { OWNER, verifyInheritedBinding, commitBinding, bindingKey, bindingIsLive } from "../src/contracts.mjs";

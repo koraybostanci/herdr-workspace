@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadBundle, validateBundle } from "./bundle.mjs";
+import { loadBundle } from "./bundle.mjs";
 import { planInstall } from "./install-plan.mjs";
 import { applyInstall, readJournal, uninstall } from "./install-journal.mjs";
 import { deepEqual, getAt, hashOf, journalPathFor, parseDoc, readBytes } from "./install-common.mjs";

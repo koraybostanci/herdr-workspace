@@ -6,7 +6,7 @@
 
 <p align="center">
   A focused Herdr workspace for people who run several coding agents at once:<br>
-  a Spaces dropdown, live agent cards and session tabs.
+  a Spaces dropdown, live agent cards, saved Session History and session tabs.
 </p>
 
 ---
@@ -18,7 +18,7 @@
 | **Spaces** (`compact-spaces`) | A fixed 44-pixel dropdown that lists spaces grouped by machine. Its divider above Agents cannot be dragged. The popup opens downward. Keyboard highlight stays put, right-click opens actions, and you can reorder spaces on the same machine. |
 | **Agents and Session History** (`space-agents`) | Open agents and saved conversations in the selected Space, with a harness icon on every row. History offers Recent, By folder and By harness views, search and exact-session resume. |
 | **Session tabs** (`session-tabs`) | The tab strip, with the Files and Changes buttons. |
-| **Helper** | A small Node program that collects session metadata. OpenCode and Claude adapters feed it. |
+| **Helper** | A small Node program that collects session metadata and catalogs saved Claude Code and OpenCode V2 conversations. The harness adapters report live session identity and activity. |
 
 Everything ships as one bundle with one installer. The installer checks your Herdr app first, writes nothing until you ask, and can undo what it did.
 
@@ -54,6 +54,16 @@ herdr-app do layout.switch '{"name":"herdr-workspace"}'
 2. `install` copies the layout, the three mods and a checked helper release into your Herdr app home. It then runs `npm ci --ignore-scripts` inside that release to install the pinned Claude SDK and `jsonc-parser`.
 3. Harness setup is **opt-in**: add `--configure-harnesses opencode,claude`. Without it, no OpenCode or Claude file is read or written.
 4. Selecting the layout is always manual.
+
+### Enable harness integrations (optional)
+
+To identify live sessions and track when a conversation opened from History starts new work, install or update the adapters explicitly:
+
+```sh
+node bin/herdr-workspace.mjs install --configure-harnesses opencode,claude
+```
+
+List only the harnesses you use. Without this opt-in, saved history can still be discovered, but exact live-session reconciliation and browsing-to-Agents tracking need the matching adapters. See [Session History setup](docs/installation.md#session-history) for source profiles, additional OpenCode services and remote requirements.
 
 ## Commands
 

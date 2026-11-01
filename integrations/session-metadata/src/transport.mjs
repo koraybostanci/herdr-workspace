@@ -2,7 +2,7 @@ import { randomBytes, randomUUID, createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { join } from "node:path";
 import { atomicJson, readJson } from "./store.mjs";
-import { OWNER, sessionKey, bindingKey, validBinding, validSession, validateSnapshot, blankRecord, isHerdrTerminal, commitBinding, bindingIsLive, foregroundProcess } from "./contracts.mjs";
+import { OWNER, bindingKey, validBinding, validSession, validateSnapshot, blankRecord, isHerdrTerminal, commitBinding, bindingIsLive, foregroundProcess } from "./contracts.mjs";
 
 const digest = token => createHash("sha256").update(token).digest("hex");
 const quote = value => "'" + String(value).replace(/'/g, "'\\''") + "'";

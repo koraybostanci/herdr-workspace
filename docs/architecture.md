@@ -5,13 +5,13 @@ herdr-workspace is one installable bundle. Component boundaries stay inside it.
 | Part | Where | Runs in | Role |
 | --- | --- | --- | --- |
 | Layout | `layouts/herdr-workspace.json` | Herdr | Places the three owned mods and the built-in Files, Changes, chrome and status mods. |
-| Mods | `mods/{space-agents,compact-spaces,session-tabs}` | Herdr (native, sandboxed JS) | Spaces dropdown, agent cards and session tabs. |
-| Helper | `integrations/session-metadata` | Node 26 | Collects session metadata and serves the agent cards. |
+| Mods | `mods/{space-agents,compact-spaces,session-tabs}` | Herdr (native, sandboxed JS) | Spaces dropdown, agent cards, Session History and session tabs. |
+| Helper | `integrations/session-metadata` | Node 26 | Collects session metadata, inventories saved conversations and serves the sidebar. |
 | Adapters | `integrations/session-metadata/{opencode,claude}` | The harness | Observe sessions and feed the helper. |
 | Installer | `bin/herdr-workspace.mjs`, `src/` | Node 26 | Plans, installs, checks and removes the bundle. |
 
 Native mods cannot run Node or read each other's files. They call the installed helper through a runtime descriptor.
-The GitHub parsing files shared between the helper and agent cards remain byte-identical, listed under `parity` in `bundle.json`.
+GitHub parsing, history grouping and session registry models have byte-identical helper/native copies, listed under `parity` in `bundle.json`.
 
 ## What the host provides
 
