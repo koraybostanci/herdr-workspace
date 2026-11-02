@@ -8,6 +8,7 @@ function age(timestamp) {
   return minutes < 1 ? "<1m" : minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`;
 }
 export function renderSessionHistory({ rows, groups, controller: c, compact, theme: t, knownPrograms, folded }) {
+  const spaceId = c.space?.id;
   const mode = historyViewMode(c.mode), options = [{ value: "recent", label: "Recent" }, { value: "folder", label: "By folder" }, { value: "harness", label: "By harness" }];
   const groupLabel = g => mode === "folder" ? `${g.rows[0].session.host} · ${g.label.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || g.label}` : g.label;
   const viewMenu = Popover.new("session-history-view-options").open(c.menuOpen).anchor("top_right").track_focus(c.menuHandle)
@@ -52,7 +53,7 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
     return h_flex().id(`session-history-${r.key}`).h(28).w_full().min_w(0).flex_none().px(compact ? 6 : 8).gap(8).items_center().rounded(3)
       .bg(c.listHandle.is_focused() && c.selectedKey === r.key ? t.selected : t.chrome).hover(el => el.bg(t.hover)).cursor_pointer()
       .role("list_box_option").aria_selected(c.selectedKey === r.key).accessibility_label(`Open ${description}`).tooltip(description)
-      .on_click((_e, cx) => { c.selectedKey = r.key; c.listHandle.focus(); c.resume(r, cx); })
+      .on_click((_e, cx) => { if (c.space?.id !== spaceId) return; c.selectedKey = r.key; c.listHandle.focus(); c.resume(r, cx, spaceId); })
       .when(compact, el => el.justify_center()).child(icon)
       .when(!compact, el => el.child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(r.title))
         .child(opening || deleting ? svg("mods/workspace-chrome/spinner.svg").id(`session-history-${deleting ? "deleting" : "opening"}-${r.key}`).size(12).flex_none().text_color(t.muted).spin(900)
@@ -65,9 +66,9 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
   return v_flex().id("session-history").w_full().min_w(0).flex_none().border_t(1).border_color(t.border).pb(8)
     .when(!compact, el => el.child(h_flex().h(42).px(14).gap(6).items_center()
       .child(Button.new("session-history-toggle").h(28).min_w(0).gap(6).items_center().cursor_pointer().text_color(t.foreground)
-        .accessibility_label(folded ? "Expand Session History" : "Collapse Session History").on_click((_e, cx) => c.toggle("history", cx))
+        .accessibility_label(folded ? "Expand History" : "Collapse History").on_click((_e, cx) => c.toggle("history", cx))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(t.muted))
-        .child(div().text_size(13).font_medium().truncate().child("Session History")))
+        .child(div().text_size(13).font_medium().truncate().child("History")))
       .child(div().id("session-history-header-spacer").flex_1().min_w(0))
       .child(div().text_size(11).flex_none().text_color(t.muted).tooltip(partial ? "Known sessions; discovery is incomplete" : "Saved sessions in this Space").child(partial ? `${count}+` : String(count)))
       .child(viewMenu)))
@@ -79,11 +80,11 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
     .when(!folded && !compact && !rows.length && !c.error, el => el.child(div().px(14).py(8).text_size(12).text_color(t.muted)
       .child(c.loading || !c.page ? "Loading session history…" : c.query ? "No matching sessions in this Space."
         : partial ? "No sessions found in the available history sources." : "No saved sessions in this Space yet.")))
-    .when(!folded, el => el.child(v_flex().id("session-history-list").px(compact ? 4 : 10).gap(2).role("list_box").accessibility_label("Session history in the selected Space")
+    .when(!folded, el => el.child(v_flex().id("session-history-list").px(compact ? 4 : 10).gap(2).role("list_box").accessibility_label("Session history in this Space")
       .track_focus(c.listHandle).tab_stop(true).on_key_down((e, cx) => {
         if (!rows.length) return;
         const key = e.keystroke ?? e.key, index = Math.max(0, rows.findIndex(r => r.key === c.selectedKey));
-        if (key === "enter" || key === "space") c.resume(rows[index], cx);
+        if (key === "enter" || key === "space") c.resume(rows[index], cx, spaceId);
         else if (key === "up" || key === "down") c.selectedKey = rows[(index + (key === "down" ? 1 : rows.length - 1)) % rows.length].key;
         else return; cx.stop_propagation(); cx.notify();
       }).children(groups.map(g => v_flex().id(`session-history-group-${g.key}`).w_full().min_w(0).flex_none().gap(0).role("group").accessibility_label(`${g.rows[0].session.host} · ${g.label}`)

@@ -27,7 +27,7 @@ test("History renders below Agents and every visible view retains its harness ic
     const tree = render(view);
     assert.ok(find(tree, "session-history"));
     assert.ok(find(tree, `session-history-icon-${key}`)?.attributes.flex_none);
-    if (width >= 160) assert.ok(text(tree).includes("Session History"));
+    if (width >= 160) assert.ok(text(tree).includes("History"));
     assert.deepEqual(state.order, []);
   }
 });

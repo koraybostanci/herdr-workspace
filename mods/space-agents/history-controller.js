@@ -71,7 +71,7 @@ export class HistoryController {
   acceptPage(response, request, append = false) {
     if (!acceptHistoryPage(response, request) || this.space?.id !== request.space.id
       || this.currentRequest?.requestId !== request.requestId || request.query !== this.query
-      || focused()?.space && focused().space !== request.space.id) return false;
+      || !this.browseSpaces && focused()?.space && focused().space !== request.space.id) return false;
     let registry;
     try {
       const activated = new Set(this.registry.sessions.flatMap(e => e.bindings.filter(b => b.browsing === false).map(b => JSON.stringify([registryBindingKey(b), b.generation]))));
@@ -100,7 +100,7 @@ export class HistoryController {
     return historyGroups(matching, { mode: historyViewMode(shared("space-agents.history.view")) });
   }
   chooseView(mode, cx) { setShared("space-agents.history.view", mode); this.menuOpen = false; this.refresh(cx); cx.notify(); }
-  toggle(section, cx) { const folded = shared("space-agents.sections") ?? {}; setShared("space-agents.sections", { ...folded, [section]: !folded[section] }); cx.notify(); }
+  toggle(section, cx) { const folded = shared("space-agents.sections") ?? (this.browseSpaces ? { history: true } : {}); setShared("space-agents.sections", { ...folded, [section]: !folded[section] }); cx.notify(); }
   requestDelete(row, open, cx) {
     this.confirmDeleteKey = open && !row.bindings.length && !["opening", "deleting"].includes(this.pending.get(row.key)?.state) ? row.key : null;
     if (this.confirmDeleteKey) this.deleteHandle.focus();
@@ -137,9 +137,10 @@ export class HistoryController {
       } finally { cx.notify(); }
     });
   }
-  resume(row, cx) {
-    if (["opening", "deleting"].includes(this.pending.get(row.key)?.state) || !this.space) return;
+  resume(row, cx, expectedSpace = this.space?.id) {
+    if (["opening", "deleting"].includes(this.pending.get(row.key)?.state) || !this.space || this.space.id !== expectedSpace) return;
     const space = this.space;
+    if (this.browseSpaces && focused()?.space !== space.id) run("space.select", { id: space.id });
     this.pending.set(row.key, { state: "opening" }); cx.notify();
     cx.spawn(async cx => {
       try {

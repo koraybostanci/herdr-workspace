@@ -40,13 +40,13 @@ test('menu preserves ordered worktree nesting and selected identity',()=>{
   const options=rows({...live,spaces:[local,tree,remote],ordered}).filter(row=>row.kind==='space');
   assert.deepEqual(options.map(row=>row.id),['sp-local','tree','devbox/sp-remote']);assert.equal(options[1].tree,'└─');assert.equal(options[0].selected,true);
 });
-test('installed Spaces row has fixed bounds and a non-draggable divider while Agents stays flexible',async()=>{
+test('installed sidebar uses the flexible Spaces tree without a draggable internal divider',async()=>{
   const layout=JSON.parse(await readFile(new URL('../layouts/herdr-workspace.json',import.meta.url),'utf8'));
   const sidebar=layout.children.find(node=>node.id==='sidebar');
   const lists=sidebar.children.find(node=>node.id==='sidebar-lists');
-  const spaces=lists.children.find(node=>node.id==='spaces'),agents=lists.children.find(node=>node.id==='agents');
+  const agents=lists.children.find(node=>node.id==='agents');
   assert.equal(lists.resizable,false);
-  assert.deepEqual(spaces.size,{px:44});assert.equal(spaces.min,44);assert.equal(spaces.max,44);
+  assert.equal(lists.children.length,1);assert.equal(agents.content.props.tree,true);
   assert.deepEqual(agents.size,{weight:1});
 });
 

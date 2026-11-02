@@ -6,7 +6,7 @@
 
 <p align="left">
   A focused Herdr workspace for people who run several coding agents at once:<br>
-  a Spaces dropdown, live agent cards, saved Session History and session tabs.
+  a Spaces tree, live agent cards, saved History and session tabs.
 </p>
 
 ---
@@ -16,8 +16,8 @@
 | Piece | What it does |
 | --- | --- |
 | **Header** (`workspace-header`) | Left-aligned branding in fullscreen, with native window-button spacing retained in normal macOS windows. |
-| **Spaces** (`compact-spaces`) | A fixed 44-pixel dropdown that lists spaces grouped by machine. Its divider above Agents cannot be dragged. The popup opens downward. Keyboard highlight stays put, right-click opens actions, and you can reorder spaces on the same machine. |
-| **Agents and Session History** (`space-agents`) | Open agents and saved conversations in the selected Space, with a harness icon on every row. History offers Recent, By folder and By harness views, search and exact-session resume. |
+| **Spaces tree** (`space-agents`) | All spaces are directly visible, grouped by machine. Expanding one collapses the others without switching your workspace. Click a space name to switch. Right-click opens actions, and you can reorder spaces on the same machine. |
+| **Agents and History** (`space-agents`) | Indented beneath the expanded Space, with a harness icon on every row. History offers Recent, By folder and By harness views, search and exact-session resume. Clicking a session switches to its owning Space. |
 | **Session tabs** (`session-tabs`) | The tab strip, with the Files and Changes buttons. |
 | **Helper** | A small Node program that collects session metadata and catalogs saved Claude Code and OpenCode V2 conversations. The harness adapters report live session identity and activity. |
 
@@ -129,11 +129,11 @@ Session History reads native Claude Code and OpenCode V2 metadata, including sav
 
 ## Session placement
 
-The selected Space filters both sections before view selection, search or counts. A resolved conversation appears once. Clicking a History row opens it for browsing without moving it to Agents. A new message or actual work activates it; it then stays in **Agents** even when idle or done, until closed. Working, blocked, done and idle remain activity badges, not placement rules. Disconnects retain the last confirmed placement.
+The expanded Space filters both sections before view selection, search or counts. Expansion does not change the active workspace; clicking a space name or session does. A resolved conversation appears once. Clicking a History row opens it for browsing without moving it to Agents. A new message or actual work activates it; it then stays in **Agents** even when idle or done, until closed. Working, blocked, done and idle remain activity badges, not placement rules. Disconnects retain the last confirmed placement.
 
 Verified Space associations take priority. External conversations without one match the exact directory and machine; Spaces sharing a directory can discover the same history. Subdirectories and worktrees are not silently combined. History also holds sessions opened only for viewing; it does not claim that a conversation is stopped everywhere, and external activity can be unknown.
 
-History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#session-history) for states and limits.
+History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#history) for states and limits.
 
 In the expanded sidebar, each history row also has a trash control. Confirming it permanently deletes the conversation from its original OpenCode or Claude source, including child sessions or subagent transcripts. Close the session in Herdr first. Failed deletion keeps the row; confirmed deletion removes its local metadata and does not change project files.
 
@@ -143,7 +143,7 @@ The Plan/Tasks panel, review system and Plan observers are no longer included. E
 
 ## Known limits
 
-- Native checks (`herdr-app check`) pass for all four mods. They do not test mouse, keyboard or pixels, so on-screen behaviour is not covered by automated tests here.
+- Native checks (`herdr-app check`) validate mod loading and an initial render. They do not test native mouse, keyboard or pixels; runtime-boundary tests cover navigation logic, and the rendered UI still needs a live check.
 - Naming is observe-only until it can be verified for your exact installation.
 
 More in [docs/limitations.md](docs/limitations.md).

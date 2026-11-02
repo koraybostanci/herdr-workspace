@@ -7,6 +7,7 @@ import { HistoryController } from "./history-controller.js";
 import { renderSessionHistory } from "./history-ui.js";
 import { historyProgram, historyViewMode } from "./history-model.js";
 import { AgentPresence } from "./agent-presence.js";
+import { SpaceTree } from "./space-tree.js";
 
 const STATUS = { working: "Working", blocked: "Needs you", done: "Done", idle: "Idle" };
 
@@ -31,7 +32,8 @@ function showsAgents(node = layout()) {
 }
 
 export default class SpaceAgents extends View {
-  init(_props, cx) {
+  init(props, cx) {
+    if (props?.tree) { this.tree = new SpaceTree(); this.tree.init(cx); }
     this.prs = new PullRequests();
     this.workingDirs = new WorkingDirectories();
     this.agentPresence = new AgentPresence();
@@ -44,6 +46,7 @@ export default class SpaceAgents extends View {
     this.knownPrograms = [];
     this.history = new HistoryController();
     this.history.init(cx);
+    this.history.browseSpaces = Boolean(this.tree);
     this.sessionView = null;
     this.refreshingMetadata = false;
     this.metadataFingerprint = "";
@@ -93,11 +96,16 @@ export default class SpaceAgents extends View {
 
   focusCard(card) {
     if (card.connection === "unavailable") return;
+    if (this.tree) {
+      const owner = card.space;
+      if (!this.tree.live(owner)) return;
+      if (focused()?.space !== owner) run("space.select", { id: owner });
+    }
     if (card.pane) run("pane.focus", { pane: card.pane });
     else run("agent.focus", { terminal: card.address });
   }
 
-  close() { this.history.close(); }
+  close() { this.tree?.close(); this.history.close(); }
 
   viewOptions(t, mode) {
     const options = [{ value: "list", label: "List (default)" }, { value: "repository", label: "Group by repository" }];
@@ -191,8 +199,14 @@ export default class SpaceAgents extends View {
   render(cx) {
     const t = theme();
     const allSpaces = spaces();
-    const selectedSpace = focused()?.space ?? allSpaces.find(s => s.active)?.id;
+    const activeSpace = focused()?.space ?? allSpaces.find(s => s.active)?.id;
+    const selectedSpace = this.tree ? this.tree.sync(allSpaces, activeSpace) : activeSpace;
     const space = allSpaces.find(s => s.id === selectedSpace);
+    const compact = (sidebar(layout())?.size?.px ?? 320) < 160;
+    if (this.tree && (!space || compact)) {
+      this.history.setSpace(null); setAgentOrder([]);
+      return this.tree.render(null, compact, t);
+    }
     const liveTerminals = terminals();
     const allPanes = panes();
     const records = readSessionView(this.sessionView, liveTerminals);
@@ -234,7 +248,7 @@ export default class SpaceAgents extends View {
       return { ...card, address: row.primaryBinding.address, pane: card?.pane ?? row.primaryBinding.pane, title: card?.title ?? row.title,
         cwd: card?.cwd ?? row.directory, directory: card?.directory ?? row.directory?.split(/[\\/]/).pop() ?? "Directory unavailable",
         program: historyProgram(row.session, this.knownPrograms), status: row.activity, connection: row.connection, focused: row.primaryBinding.focused,
-        machine: space?.machine ?? null, sessionBound: true, sessionKey: row.key, session: row.session };
+        space: selectedSpace, machine: space?.machine ?? null, sessionBound: true, sessionKey: row.key, session: row.session };
     });
     const displayCards = [...resolved, ...projected.filter(c => !covered.has(c.address)).map(c => ({ ...c, identityPending: true }))];
     const groups = grouped ? agentGroups(displayCards) : [];
@@ -245,7 +259,6 @@ export default class SpaceAgents extends View {
       this.refreshMetadata(cx);
     }
     if (space && !this.history.currentRequest) this.history.refresh(cx);
-    const compact = (sidebar(layout())?.size?.px ?? 320) < 160;
     const collapsedGroups = shared("space-agents.groups") ?? {};
     const groupStateKey = group => JSON.stringify([selectedSpace, space?.machine ?? null, group.key]);
     const groupCollapsed = group => !compact && Boolean(collapsedGroups[groupStateKey(group)]);
@@ -269,17 +282,15 @@ export default class SpaceAgents extends View {
       });
     }
 
-    const folded = shared("space-agents.sections") ?? {};
+    const folded = shared("space-agents.sections") ?? (this.tree ? { history: true } : {});
     this.history.mode = historyViewMode(shared("space-agents.history.view"));
     const historyGroups = this.history.groups(partition.history), historyRows = historyGroups.flatMap(g => g.rows);
-    return v_flex().id("space-agents").size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border)
-      .role("region").accessibility_label(`Agents in ${space?.name ?? "selected space"}`)
-      .child(v_flex().id("space-agent-scroll").flex_1().min_h(0).overflow_y_scrollbar().mode("always")
+    const sections = v_flex().id("space-agent-sections").w_full().min_w(0).flex_none()
       .when(!compact, el => el.child(h_flex().h(48).px(14).gap(8).flex_none().items_center()
         .child(Button.new("agents-section-toggle").h(28).gap(6).items_center().cursor_pointer().accessibility_label(folded.agents ? "Expand Agents" : "Collapse Agents")
           .on_click((_e, cx) => this.history.toggle("agents", cx)).child(svg(`mods/workspace-chrome/chevron-${folded.agents ? "right" : "down"}.svg`).size(12).text_color(t.muted))
           .child(div().text_size(13).font_medium().text_color(t.foreground).child("Agents")))
-        .child(div().flex_1().min_w(0).text_size(12).text_color(t.muted).truncate().child(space?.name ?? "No space selected"))
+        .child(div().flex_1().min_w(0).text_size(12).text_color(t.muted).truncate().child(this.tree ? "" : space?.name ?? "No space selected"))
         .child(div().text_size(12).text_color(t.muted).child(String(cards.length)))
         .child(this.viewOptions(t, mode))))
       .when(cards.length === 0 && !compact && !folded.agents, el => el.child(v_flex().px(14).pb(16).gap(6)
@@ -320,7 +331,11 @@ export default class SpaceAgents extends View {
               .child(div().flex_none().child(String(group.cards.length)))))
             .children(collapsed ? [] : group.cards.map(card => this.card(card, compact, t, true)));
         }) : cards.map(card => this.card(card, compact, t))))
-      .child(renderSessionHistory({ rows: historyRows, groups: historyGroups, controller: this.history, compact, theme: t, knownPrograms: this.knownPrograms, folded: Boolean(folded.history) })))
+      .child(renderSessionHistory({ rows: historyRows, groups: historyGroups, controller: this.history, compact, theme: t, knownPrograms: this.knownPrograms, folded: Boolean(folded.history) }));
+    if (this.tree) return this.tree.render(sections, compact, t);
+    return v_flex().id("space-agents").size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border)
+      .role("region").accessibility_label(`Agents in ${space?.name ?? "selected space"}`)
+      .child(v_flex().id("space-agent-scroll").flex_1().min_h(0).overflow_y_scrollbar().mode("always").child(sections))
       .when(compact, el => el.child(h_flex().h(32).flex_none().justify_center().items_center()
         .child(Button.new("expand-space-sidebar").p(6).rounded(5).cursor_pointer().text_color(t.muted)
           .accessibility_label("Expand sidebar")

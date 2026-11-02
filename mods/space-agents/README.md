@@ -1,8 +1,29 @@
 # Space agents
 
-A native Herdr sidebar for the currently selected space. The
-`herdr-workspace` layout is cloned from `main` and places spaces above agent cards
-on the left. It reuses shipped mods without requiring edits to shipped files.
+A native Herdr sidebar. The `herdr-workspace` layout enables its Spaces tree
+with `{ "tree": true }` and nests Agents and History beneath the expanded Space.
+It reuses shipped assets without requiring edits to shipped files. Layouts that
+omit the tree prop retain the selected-space Agents/History panel.
+
+## Spaces tree
+
+All Space names remain visible in one scrollable list, grouped by machine.
+Expanding a Space collapses the previous branch. The chevron only expands or
+collapses; clicking the name also switches your workspace. Agents and History
+are indented beneath their Space, and each section folds independently. History
+starts folded when no section preference exists.
+
+Clicking an agent or saved conversation first selects its owning Space, then
+focuses or opens that exact session. Only the expanded branch loads history;
+late responses cannot populate a different branch. Expansion is remembered in
+`space-agents.tree`. Switching workspaces through another control reveals the
+new active Space. Collapsing a branch does not close any session.
+
+With the Space list focused, Up/Down and Home/End move the highlight, Right
+expands, Left collapses, and Enter/Space selects. Right-click retains the native
+Space menu. Drag names to reorder within a machine. The plus controls create on
+their labelled machine; unavailable machines cannot fall back to local creation.
+A narrow sidebar shows all Space avatars and an Expand sidebar control.
 
 ## Use
 
@@ -33,7 +54,7 @@ neither a title source nor a synchronization target. See the
 [installation guide](../../docs/installation.md) for opt-in harness setup and upgrades,
 and [architecture notes](../../docs/architecture.md) for the shared helper and observe-only naming.
 
-The list updates automatically when the selected space changes or Herdr detects
+The list updates automatically when the expanded space changes or Herdr detects
 an agent program running in a pane. A newly launched agent appears before its
 first live status report (OSC 7501), with “No status” until it reports.
 Starting a terminal alone does not make it an agent. New agent cards do **not**
@@ -63,7 +84,8 @@ the indicator for the full meaning, branch and physical path. Unknown types have
 view keeps its existing repository line.
 
 The choice is saved in the owned `space-agents.view` shared setting. Both modes
-show only the selected space. Keyboard navigation follows the displayed order.
+show only the expanded space (the selected space in layouts without the tree).
+Keyboard navigation follows the displayed order.
 In the grouped view, click a directory/repository heading, or focus it and press
 Enter/Space, to collapse or expand its cards. Headings keep their total agent
 count. Groups start expanded and remember their state per Space in
@@ -74,15 +96,15 @@ Unbound agents discover repository identity independently of PRs, so clones and
 worktrees still group together when they have no open PR. Unpaired SSH/remote-server
 panes do not authorize local filesystem probes from their reported paths.
 
-## Session History
+## History
 
-Session History sits below Agents in the same scrollable sidebar. Each section folds independently. Both use the selected Space as their outer filter; there is no All workspaces option. Every visible session keeps its harness icon, even in the narrow sidebar.
+History sits below Agents in the same scrollable sidebar. Each section folds independently. Both use the expanded Space as their outer filter; there is no All workspaces option. Every visible session keeps its harness icon. Layouts without the tree use the selected Space and retain compact session rows in the narrow sidebar.
 
 - **Recent**: newest native update first, under Today, Yesterday and Older.
 - **By folder**: separate full directory/machine groups, including separate worktrees.
 - **By harness**: Claude Code and OpenCode, newest first within each group.
 
-The History view is remembered independently of the Agents view. Search matches titles and paths inside the selected Space. Load more reveals another bounded page. Incomplete discovery shows a warning and a known-count indicator rather than claiming the list is complete.
+The History view is remembered independently of the Agents view. Search matches titles and paths inside this Space. Load more reveals another bounded page. Incomplete discovery shows a warning and a known-count indicator rather than claiming the list is complete.
 
 History rows are a dense 28px single-line list: harness icon, title, compact age and a small trash control in the expanded sidebar. Folder/machine details and errors are in the tooltip. There are no Resume buttons or second metadata lines.
 
