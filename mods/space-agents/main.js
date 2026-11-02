@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * Adapted from Herdr v0.1.9, defaults/mods/agents/main.js:
+ * https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/agents/main.js
+ * Modified by koraybostanci in 2026: selected-space agent cards, repository grouping, session metadata and history.
+ * Copyright (c) 2026 koraybostanci (modifications only).
+ * See LICENSE and NOTICE in this mod directory, including icon terms.
+ */
+
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Button, Popover, InputState } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, layout, shared, setShared, setAgentOrder, exec, knownAgents, appHome, readTextFile, watchFolder, props as modProps } from "herdr";

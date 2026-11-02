@@ -1,0 +1,60 @@
+herdr-workspace
+Copyright (c) 2026 koraybostanci
+
+Owner-authored code, documentation and artwork, and the owner's modifications
+to upstream code, are licensed under the Apache License, Version 2.0 (LICENSE).
+This attribution does not claim ownership of third-party material or change
+its terms.
+
+This project includes adaptations of Herdr default mods from Herdr v0.1.9:
+https://github.com/herdrdev/herdr-app/tree/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2
+
+  mods/compact-spaces/main.js   <- defaults/mods/spaces/main.js
+  mods/space-agents/main.js     <- defaults/mods/agents/main.js
+  mods/session-tabs/main.js     <- defaults/mods/tabs/main.js
+  mods/workspace-header/main.js <- defaults/mods/workspace-chrome/main.js
+
+The supporting mods/space-agents/space-tree.js also shares the Spaces palette
+and machine-refresh pattern from defaults/mods/spaces/main.js; it is not
+represented as an entirely independent implementation.
+
+The upstream code is licensed under the Apache License, Version 2.0:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/LICENSE
+Original contributors retain their rights in that code. Modified derived
+main.js files and space-tree.js identify the modifications; each installed
+mod includes its own full LICENSE and NOTICE.
+
+The bundled control icons and the project document mark's workspace glyph
+come from Lucide 0.468.0, commit f12b0de177fbc2a6795e99be065887e72b237123:
+https://github.com/lucide-icons/lucide/tree/f12b0de177fbc2a6795e99be065887e72b237123
+  mods/space-agents/pull-request.svg <- icons/git-pull-request.svg (unchanged)
+  mods/space-agents/trash.svg        <- icons/trash-2.svg (unchanged)
+  assets/logo.svg                   <- icons/panels-top-left.svg (modified)
+
+Lucide copyright and permission notices are retained in full in
+licenses/Lucide-0.468.0.txt, from that exact revision's LICENSE. The installed
+space-agents/NOTICE also includes that complete license, the earlier
+repository attribution, and the earlier full ISC/Feather MIT notices.
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part
+of Feather (MIT). All other copyright (c) for Lucide are held by Lucide
+Contributors 2022.
+
+The project document mark's 128x128 composition, navy rounded background,
+color, sizing and accessible title were added for this project in 2026;
+the glyph geometry is unchanged. The owner's additions are Apache-2.0; the
+Lucide glyph retains its own terms. This is not the Herdr brand or cow icon
+and does not replace the host-supplied image in the native app header.
+These known-source assets replaced the earlier assets during beta hardening
+on 2026-11-02; no historical authorship confirmation is claimed.
+
+THIRD_PARTY.md records the exact scope, source evidence and separately
+installed dependencies. licenses/assets.json records immutable source URLs,
+pristine and shipped hashes, and modifications. Full relevant license texts
+and the Anthropic package notice are in licenses/.
+Herdr runtime libraries, binaries, fonts, brand icons and other default mods
+are supplied by the host, not redistributed in this bundle.
+
+Herdr, Anthropic, Claude, OpenCode and other product names and marks belong
+to their respective owners. No trademark permission or endorsement is implied.
+
+These notices are informational and do not modify the applicable licenses.

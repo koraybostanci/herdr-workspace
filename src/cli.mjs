@@ -51,7 +51,7 @@ function parse(argv) {
 
 const rel = (path, home) => (home && path.startsWith(home + "/") ? "~" + path.slice(home.length) : path);
 
-export async function runCli(argv, { run = defaultRun, node = process.execPath, env = process.env, stdout = s => process.stdout.write(s), stderr = s => process.stderr.write(s),
+export async function runCli(argv, { run = defaultRun, node = process.execPath, env = process.env, platform = process.platform, stdout = s => process.stdout.write(s), stderr = s => process.stderr.write(s),
   sourceRoot = resolve(fileURLToPath(new URL("../", import.meta.url))) } = {}) {
   const say = line => stdout(line + "\n");
   let o;
@@ -69,7 +69,7 @@ export async function runCli(argv, { run = defaultRun, node = process.execPath, 
   try {
     const bundle = await loadBundle(sourceRoot);
     const check = strictRun(run);
-    const pre = await preflight({ bundle, appHome: paths.appHome, node: { path: node, version: process.version }, run: check });
+    const pre = await preflight({ bundle, appHome: paths.appHome, node: { path: node, version: process.version }, run: check, platform });
     const harnesses = { opencodePath: paths.opencodePath, claudePath: paths.claudePath };
 
     if (o.command === "uninstall") {

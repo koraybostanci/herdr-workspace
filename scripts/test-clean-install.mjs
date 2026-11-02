@@ -2,28 +2,19 @@
 // Clean-export installation proof. Installs an exported copy of the bundle into a fresh HOME against a synthetic
 // Herdr app home, using a hermetic PATH. It never reads the developer's configuration, state or credentials.
 import { createHash } from "node:crypto";
-import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, readlink, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { defaultRun } from "../src/cli.mjs";
-import { assetRefsOf, expandInclude, importsOf, loadBundle } from "../src/bundle.mjs";
+import { assetRefsOf, importsOf, loadBundle } from "../src/bundle.mjs";
+import { exportBundleTo } from "./lib/release.mjs";
+export { exportBundleTo };
 
 const SOURCE_CHECKOUT = fileURLToPath(new URL("../", import.meta.url)).replace(/\/$/, "");
 const SKIP = new Set(["node_modules"]);
 const exists = async path => lstat(path).then(() => true, () => false);
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
-
-// Copies only what the repository intends to ship: bundle.json, installer files and every file bundle.json declares.
-export async function exportBundleTo(sourceRoot, dest) {
-  const bundle = await loadBundle(sourceRoot);
-  const installer = await expandInclude(sourceRoot, bundle.installer ?? []);
-  for (const path of ["bundle.json", ...installer, ...Object.keys(bundle.files)]) {
-    await mkdir(dirname(join(dest, path)), { recursive: true });
-    await cp(join(sourceRoot, path), join(dest, path));
-  }
-  return dest;
-}
 
 async function snapshot(root) {
   const out = new Map();
@@ -85,7 +76,7 @@ export async function runCleanInstall({ exportRoot, tmpRoot = join(process.env.H
   await symlink(process.execPath, join(bin, "node"));
   if (npmBin) await symlink(npmBin, join(bin, "npm"));
   const stub = (name, body) => writeFile(join(bin, name), `#!${process.execPath}\n${body}\n`, { mode: 0o755 });
-  await stub("herdr-app", "console.log('herdr-app 0.1.9')");
+  await stub("herdr-app", "console.log('herdr-app 0.1.12')");
   await stub("opencode", `const args=process.argv.slice(2);
     if(args[0]==="service"&&args[1]==="status") console.log("http://127.0.0.1:4096");
     else if(args[0]==="api"&&args[1]==="get"&&args[2]==="/api/session") console.log(JSON.stringify({data:[

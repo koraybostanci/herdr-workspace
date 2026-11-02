@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * Derived from Herdr v0.1.9, defaults/mods/workspace-chrome/main.js:
+ * https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/workspace-chrome/main.js
+ * Modified by koraybostanci in 2026: dedicated sidebar header, removed footer mode and adjusted titlebar spacing.
+ * Copyright (c) 2026 koraybostanci (modifications only).
+ * See LICENSE and NOTICE in this mod directory.
+ */
+
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { theme, run, window, shared, setShared, layout } from "herdr";

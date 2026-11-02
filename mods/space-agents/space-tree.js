@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * The palette and machine-refresh pattern are adapted from Herdr v0.1.9, defaults/mods/spaces/main.js:
+ * https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/spaces/main.js
+ * Modified by koraybostanci in 2026: reusable expandable Spaces tree, machine-aware controls and history browsing.
+ * Copyright (c) 2026 koraybostanci (workspace additions and modifications only).
+ * See LICENSE and NOTICE in this mod directory.
+ */
+
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, Button } from "gpui-base";
 import { spaces, machines, run, shared, setShared, openOverlay, hc } from "herdr";

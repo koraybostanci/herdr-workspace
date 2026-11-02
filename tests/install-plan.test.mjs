@@ -20,10 +20,10 @@ test("default_plan_has_no_writes", async t => {
   assert.ok(plan.files.length > 30);
   assert.deepEqual([await h.list(h.home), await h.read(h.claudePath)], before);
   const out = [], err = [];
-  const code = await runCli(["plan", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot });
+  const code = await runCli(["plan", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot });
   assert.equal(code, 0, err.join(""));
   assert.deepEqual(await h.list(h.home), before[0]);
-  const bare = await runCli(["--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, env: { HOME: h.home }, stdout: () => {}, stderr: () => {}, sourceRoot: h.sourceRoot });
+  const bare = await runCli(["--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: () => {}, stderr: () => {}, sourceRoot: h.sourceRoot });
   assert.equal(bare, 0, "no command means plan");
   assert.deepEqual(await h.list(h.home), before[0]);
   assert.ok(out.join("").includes("layout.switch"), "prints the native layout-selection command");

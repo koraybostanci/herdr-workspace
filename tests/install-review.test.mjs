@@ -83,7 +83,7 @@ test("a missing npm is refused by the CLI before any write", async t => {
   const h = await installHome(t);
   h.run.noNpm = true;
   const before = await h.list(h.home), err = [];
-  const code = await runCli(["install", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, env: { HOME: h.home }, stdout: () => {}, stderr: s => err.push(s), sourceRoot: h.sourceRoot });
+  const code = await runCli(["install", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: () => {}, stderr: s => err.push(s), sourceRoot: h.sourceRoot });
   assert.equal(code, 1);
   assert.match(err.join(""), /npm/);
   assert.deepEqual(await h.list(h.home), before);
@@ -117,7 +117,7 @@ test("doctor fails when an installed file is gone or changed", async t => {
   await applyInstall(await planOf(h, { configureHarnesses: [] }), { run: h.run });
   const doctor = async () => {
     const out = [];
-    const code = await runCli(["doctor", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, env: { HOME: h.home }, stdout: s => out.push(s), stderr: () => {}, sourceRoot: h.sourceRoot });
+    const code = await runCli(["doctor", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: s => out.push(s), stderr: () => {}, sourceRoot: h.sourceRoot });
     return { code, out: out.join("") };
   };
   assert.equal((await doctor()).code, 0);
@@ -132,7 +132,7 @@ test("doctor fails when an owned settings entry was removed", async t => {
   await applyInstall(await planOf(h), { run: h.run });
   await writeFile(h.claudePath, "{}\n");
   const out = [];
-  const code = await runCli(["doctor", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, env: { HOME: h.home }, stdout: s => out.push(s), stderr: () => {}, sourceRoot: h.sourceRoot });
+  const code = await runCli(["doctor", "--app-home", h.appHome, "--state-root", h.stateRoot], { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: s => out.push(s), stderr: () => {}, sourceRoot: h.sourceRoot });
   assert.equal(code, 1);
   assert.match(out.join(""), /FAIL.*settings/);
 });

@@ -1,0 +1,25 @@
+herdr-workspace / session-tabs
+Copyright (c) 2026 koraybostanci (workspace additions and modifications)
+
+Includes code adapted from Herdr v0.1.9, defaults/mods/tabs/main.js:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/tabs/main.js
+The mod descriptor reuses the corresponding upstream mod.json metadata.
+Original contributors retain their rights in the upstream code.
+
+Modified by koraybostanci in 2026: owned mod identity, migration of legacy
+panel preferences and recording explicit panel choices; retains most upstream
+tab rendering and panel synchronization.
+
+Upstream code and owner modifications are licensed under Apache-2.0.
+The full license is in LICENSE in this directory. Pinned upstream license:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/LICENSE
+The pinned upstream tree has no root NOTICE or legal headers in this mod's
+main.js or descriptor. Source provenance is recorded here independently of
+any cloned_from metadata.
+
+Herdr supplies the runtime modules, other mods and referenced host assets;
+they are not bundled in this mod. Their names and marks remain their owners'.
+This notice does not grant trademark rights or imply endorsement.
+For the full archive's provenance inventory, see root THIRD_PARTY.md.
+
+These notices are informational and do not modify the applicable licenses.

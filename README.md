@@ -25,21 +25,25 @@ Everything ships as one bundle with one installer. The installer checks your Her
 
 ## Requirements
 
-- macOS and **Herdr 0.1.9**. Other platforms and versions are untested.
+- macOS and **Herdr 0.1.12**, the tested desktop version.
 - **Node 26 or newer**.
 - Optional: `git` for branch context, `gh` with your own sign-in for verified pull request links, and OpenCode or Claude Code for the harness adapters.
 
 The UI installs without GitHub credentials. A missing optional tool turns off only its own feature.
-A different Herdr version, such as 0.1.11, produces an unverified-version warning, not an installation blocker.
+Older, missing or unreadable Herdr versions and unsupported platforms block installation. Newer Herdr versions warn as unverified. Launch Herdr once to create its built-in files, and check `herdr-app --version` on your PATH.
+
+## Private beta
+
+This repository stays **private**. Authorized testers can download the pinned `v0.1.0-beta.1` source archive with their own GitHub account. See [the beta download and acceptance checklist](docs/private-beta.md). No invitation, public repository or shared token is required by the installer. A second physical Mac acceptance test is still pending.
 
 ## Fresh install
 
 Install Herdr and Node first. The clone command needs Git and access to this repository. Run these commands one at a time; **stop if `plan` reports any `blocked:` lines**.
 
 ```sh
-git clone git@github.com:koraybostanci/herdr-workspace.git
+git clone --branch v0.1.0-beta.1 git@github.com:koraybostanci/herdr-workspace.git
 cd herdr-workspace
-npm ci                              # installer dependency only; runs no scripts
+npm ci --ignore-scripts             # installer dependency only
 
 node bin/herdr-workspace.mjs plan   # preview. Writes nothing.
 node bin/herdr-workspace.mjs install
@@ -73,12 +77,10 @@ List only the harnesses you use. Without this opt-in, saved history can still be
 
 ## Upgrade an installer-managed installation
 
-From your repository checkout:
+Download and verify the next private prerelease into a new folder, or fetch its exact published tag in your checkout. Do not use an unverified moving branch as a release:
 
 ```sh
-git switch main
-git pull --ff-only
-npm ci
+npm ci --ignore-scripts
 node bin/herdr-workspace.mjs plan --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs install --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs doctor
@@ -114,7 +116,7 @@ See [docs/installation.md](docs/installation.md) for the full list of what chang
 
 ## Safety
 
-- **Preflight first.** A missing Herdr built-in mod or asset, or an old Node stops the install before any write.
+- **Preflight first.** An unsupported platform, old/unavailable Herdr, missing built-in mod or asset, or old Node stops the install before any write.
 - **No silent overwrites.** A file that already exists with different content blocks the install. `--adopt` replaces it only after saving a backup.
 - **Journaled.** Every change is recorded before it is made. An interrupted install resumes when you run the same command again.
 - **Minimal settings edits.** With harness opt-in, the installer adds or updates one OpenCode plugin entry and six Claude hooks. Comments, providers, models and credential helpers stay untouched.
@@ -150,11 +152,14 @@ More in [docs/limitations.md](docs/limitations.md).
 
 ## Develop
 
+Run these checks from an authenticated source checkout; release archives omit the test suite and Git metadata.
+
 ```sh
 npm ci
 (cd integrations/session-metadata && npm ci)   # helper dependencies for the source tests
 npm test                  # Node tests
 npm run test:clean-install  # install, read metadata and uninstall from a clean export
+npm run test:native-install # isolated profile, actual Herdr checker; macOS + Herdr required
 npm run check:privacy     # source allowlist and secret scan
 ```
 
@@ -171,4 +176,4 @@ docs/                   installation, architecture, limitations
 tests/  scripts/        regression tests, privacy scan, clean-install proof
 ```
 
-Architecture notes: [docs/architecture.md](docs/architecture.md). Third-party notices: [THIRD_PARTY.md](THIRD_PARTY.md).
+Architecture notes: [docs/architecture.md](docs/architecture.md). [Release process](docs/release-process.md). Owner material: [Apache-2.0](LICENSE). Third-party terms, including the separately installed Claude SDK: [THIRD_PARTY.md](THIRD_PARTY.md).

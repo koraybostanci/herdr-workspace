@@ -4,6 +4,8 @@
   "files": [
     ".gitignore",
     "LICENSE",
+    "NOTICE",
+    "licenses/",
     "README.md",
     "THIRD_PARTY.md",
     "bundle-files.json",

@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * Derived from Herdr v0.1.9, defaults/mods/tabs/main.js:
+ * https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/tabs/main.js
+ * Modified by koraybostanci in 2026: owned mod identity, legacy panel-preference migration and explicit panel choices.
+ * Copyright (c) 2026 koraybostanci (modifications only).
+ * See LICENSE and NOTICE in this mod directory.
+ */
+
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings, appHome, readTextFile } from "herdr";

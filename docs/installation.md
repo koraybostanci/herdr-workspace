@@ -1,7 +1,11 @@
 # Installation
 
-Supported: macOS, Herdr 0.1.9, Node 26 or newer. Other platforms and versions are unverified.
-A different Herdr version produces a warning rather than a blocker; it does not imply full compatibility. Missing required host files or an old Node version still block installation.
+Tested baseline: macOS, Herdr 0.1.12, Node 26 or newer.
+Older Herdr versions, an unreadable/missing host, unsupported platforms, missing required host files and an old Node version block installation. Newer hosts warn as unverified; the warning is not a compatibility guarantee.
+
+Install and launch [Herdr desktop](https://github.com/herdrdev/herdr-app) once, then confirm `herdr-app --version` prints `herdr-app 0.1.12`. If the command is missing, fix the desktop CLI setup/PATH before installing this bundle. Install [Node.js](https://nodejs.org/) 26 or newer and check `node --version`. Installation downloads dependencies from the public npm registry. The Claude SDK has [separate terms](../THIRD_PARTY.md); verify that you can use it before installation.
+
+This repository remains private. Use your own authorized GitHub account to [download and verify the beta](private-beta.md), or clone its exact release tag. Repository access and optional runtime PR badges are separate: downloading needs GitHub access; the installed UI does not need GitHub credentials.
 
 Choose the path that matches your system: [fresh install](../README.md#fresh-install), [managed upgrade](#upgrade-and-removal), or [unmanaged migration](#unmanaged-installations). Run `plan` and `install` with the same options. Stop if the preview reports any `blocked:` lines.
 
@@ -31,7 +35,7 @@ Options: `--app-home` (default `~/.config/herdr-app`), `--state-root` (default `
 - `<app-home>/data/herdr-workspace/install-journal.json`, the install record (mode 0600). Backups of replaced files and settings go beside it.
 - With `--configure-harnesses`: one OpenCode plugin entry and six Claude hooks are added or updated. Unrelated entries, comments, providers, models and credential helpers are preserved.
 
-Preflight runs before any write. It fails on a missing built-in mod or asset, or an old Node. A missing `git` or `gh` only turns off its feature. `gh` sign-in is not needed to install.
+Preflight runs before any write. It fails on unsupported platforms, old/unavailable hosts, missing built-in mods/assets or old Node. A missing `git` or `gh` only turns off its feature. `gh` sign-in is not needed to install files you already downloaded.
 
 ## Safety
 
@@ -64,18 +68,18 @@ Use a distinct authority for a distinct service. Authentication stays with OpenC
 
 ## Upgrade and removal
 
-For an installation managed by this installer, update the checkout and preview the upgrade:
+For a managed installation, download and verify the next private prerelease in a new folder, then run its installer against the same app/state paths. Alternatively fetch its exact published tag in your checkout. Preview the upgrade before applying it:
 
 ```sh
-git switch main
-git pull --ff-only
-npm ci
+npm ci --ignore-scripts
 node bin/herdr-workspace.mjs plan --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs install --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs doctor
 ```
 
 Select only the harnesses you use, and keep any original `--app-home`, `--state-root`, `--opencode-path` and `--claude-path` overrides. Omit the harness flag if you did not configure integrations. Run `install` only when `plan` has no blockers. Owned settings entries are replaced, not duplicated; a normal managed upgrade does not need `--adopt`. Run `uninstall` to remove the installed bundle.
+
+Before removal, select another installed layout in Herdr. From the retained release folder run `node bin/herdr-workspace.mjs uninstall`, with the same path overrides. Removal does not need a working Herdr executable. It keeps changed files, unrelated settings and private history/state. Keep the journal/backups if you may need to inspect an adopted installation. Downgrades are not separately certified; preview an older release and stop on any blocker rather than deleting files or state.
 
 When upgrading from the removed Plan feature, include `--configure-harnesses opencode,claude` for the harnesses you previously configured, using their original settings paths. Without that opt-in, an old Plan-enabled harness entry blocks the upgrade rather than leaving the integration active. Edited entries that would retain a Plan observer also block the upgrade; they are never silently overwritten. Only the requested harness files are read or changed. OpenCode reloads plugin configuration live; if an old plugin remains loaded, use `/reload`. No service restart is required. Claude's updated hooks apply to subsequent hook events.
 
