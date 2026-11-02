@@ -38,6 +38,7 @@ export const hc = async () => {assertNotRendering();return {code:0,stdout:JSON.s
 export const panes = () => state.data.allPanes;
 export const terminals = () => state.data.allTerminals;
 export const focused = () => state.data.focused ?? ({ space: state.data.selectedSpace });
+export const props = () => state.props ?? null;
 export const theme = () => new Proxy({}, { get: () => "#aabbcc" });
 export const layout = () => state.layout ?? ({ id: "sidebar", size: { px: state.width ?? 320 }, children: [{ id: "agents", content: { mod: "space-agents" } }] });
 export const shared = key => key === "layout" ? "herdr-workspace" : state.shared?.[key] ?? null;

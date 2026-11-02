@@ -18,7 +18,7 @@ function fixture(saved = {}) {
     allPanes: [], allTerminals: [], allMachines: [], selectedSpace: "one",
   };
   state.commands = []; state.tasks = []; state.timers = []; state.shared = saved;
-  state.width = 320; state.layout = null; state.focusedHandle = null; state.files = {}; state.execute = null;
+  state.width = 320; state.layout = null; state.focusedHandle = null; state.files = {}; state.execute = null; state.props = null;
   const view = new SpaceAgents(); view.init({ tree: true }, context());
   return view;
 }
@@ -35,6 +35,17 @@ test("the native host can initialize the mod without layout props", () => {
   fixture();
   const view = new SpaceAgents(); view.init(undefined, context());
   assert.ok(text(render(view)).includes("First task"));
+});
+
+test("native layout props enable the Spaces tree even when init receives no tree option", () => {
+  for (const initialProps of [undefined, {}]) {
+    fixture(); state.props = { tree: true };
+    const view = new SpaceAgents(); view.init(initialProps, context());
+    const tree = render(view);
+    assert.ok(find(tree, "space-tree-list"));
+    assert.ok(find(tree, "space-tree-name-one")); assert.ok(find(tree, "space-tree-name-two"));
+    assert.ok(find(find(tree, "space-tree-children-one"), "agents-section-toggle"));
+  }
 });
 
 test("the installed layout gives the tree one flexible sidebar block, not a separate dropdown", async () => {

@@ -1,6 +1,6 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Button, Popover } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, layout, shared, setShared, setAgentOrder, exec, knownAgents, appHome, readTextFile, watchFolder } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, layout, shared, setShared, setAgentOrder, exec, knownAgents, appHome, readTextFile, watchFolder, props as modProps } from "herdr";
 import { agentCards, agentGroups, agentViewMode, WorkingDirectories, PullRequests, cardPullRequest, repositoryLabel } from "./model.js";
 import { readSessionView, projectSessionCard, readLiveSessionBindings } from "./session-metadata.js";
 import { HistoryController } from "./history-controller.js";
@@ -33,7 +33,7 @@ function showsAgents(node = layout()) {
 
 export default class SpaceAgents extends View {
   init(props, cx) {
-    if (props?.tree) { this.tree = new SpaceTree(); this.tree.init(cx); }
+    if ((modProps() ?? props)?.tree) { this.tree = new SpaceTree(); this.tree.init(cx); }
     this.prs = new PullRequests();
     this.workingDirs = new WorkingDirectories();
     this.agentPresence = new AgentPresence();
