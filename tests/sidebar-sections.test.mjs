@@ -67,6 +67,47 @@ test("History expansion and Space browsing stay independent from Agents and work
   assert.deepEqual(state.commands, []);
 });
 
+test("per-Space History has no loading or empty paragraphs that move following Spaces", () => {
+  for (const phase of ["loading", "empty", "partial"]) {
+    const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-name-one"); render(view);
+    const controller = view.controllers.get("one");
+    if (phase !== "loading") {
+      seed(view, "one", []); controller.loading = false;
+      controller.page.complete = phase !== "partial";
+    }
+    const branch = find(render(view), "history-space-tree-children-one");
+    assert.deepEqual(text(branch), [], `${phase}: empty branches should stay quiet`);
+    assert.ok(find(branch, "session-history-list"), "retain the list and its keyboard/accessibility boundary");
+  }
+});
+
+test("known History rows stay visible while a background refresh is pending", () => {
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-name-one"); render(view);
+  seed(view, "one", [historyEntry("saved", { title: "Previously loaded session" })]);
+  const controller = view.controllers.get("one"); controller.loading = false; state.tasks = [];
+  controller.refresh(context());
+  assert.equal(controller.loading, true);
+  assert.equal(state.tasks.length, 1, "background refresh remains enabled");
+  const branch = find(render(view), "history-space-tree-children-one");
+  assert.ok(text(branch).includes("Previously loaded session"));
+  assert.equal(text(branch).some(value => /Loading session history/.test(value)), false);
+});
+
+test("quiet History branches retain real errors, Retry and known sessions", () => {
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-name-one"); render(view);
+  seed(view, "one", [historyEntry("saved", { title: "Known session" })]);
+  const controller = view.controllers.get("one"); controller.loading = false; controller.error = "History unavailable. Check the metadata helper, then retry.";
+  state.tasks = [];
+  const branch = find(render(view), "history-space-tree-children-one");
+  assert.ok(text(branch).includes("Known session"));
+  assert.ok(text(branch).includes(controller.error));
+  const queued = state.tasks.length;
+  click(branch, "session-history-retry");
+  assert.equal(controller.loading, true);
+  assert.equal(controller.error, null);
+  assert.equal(state.tasks.length, queued + 1);
+});
+
 test("closing History restores working space without collapsing the Agents branch", () => {
   const view = fixture(); click(render(view), "history-area-toggle");
   click(render(view), "history-space-tree-name-two");

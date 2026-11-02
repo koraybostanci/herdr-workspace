@@ -82,7 +82,7 @@ export function renderSessionHistory({ rows, groups, controller: c, compact, the
     .when(!folded && !compact && (c.error || partial && heading), el => el.child(v_flex().px(14).py(5).gap(4)
       .child(div().text_size(11.5).text_color(t.muted).child(c.error || "Some history sources are unavailable. Showing known sessions."))
       .when(Boolean(c.error), el => el.child(Button.new("session-history-retry").h(26).text_size(12).text_color(t.accent).cursor_pointer().on_click((_e, cx) => c.refresh(cx)).child("Retry")))))
-    .when(!folded && !compact && !rows.length && !c.error, el => el.child(div().px(14).py(8).text_size(12).text_color(t.muted)
+    .when(heading && !folded && !compact && !rows.length && !c.error, el => el.child(div().px(14).py(8).text_size(12).text_color(t.muted)
       .child(c.loading || !c.page ? "Loading session history…" : c.query ? "No matching sessions in this Space."
         : partial ? "No sessions found in the available history sources." : "No saved sessions in this Space yet.")))
     .when(!folded, el => el.child(v_flex().id("session-history-list").pl(compact ? 4 : heading ? 10 : 7).pr(compact ? 4 : 10).gap(2).role("list_box").accessibility_label("Session history in this Space")
