@@ -199,6 +199,27 @@ test("new-space actions retain the exact remote machine and refuse disconnected 
   assert.deepEqual(state.commands, []);
 });
 
+test("new-space controls belong to machine headings, not the Spaces heading", () => {
+  const view = fixture(); state.data.allMachines = [{ name: null, layout: "ready" }, { name: "devbox", layout: "ready" }];
+  const tree = render(view);
+  assert.equal(find(tree, "space-tree-new"), undefined);
+  assert.ok(find(find(tree, "space-tree-machine-local"), "space-tree-new-local"));
+  assert.ok(find(find(tree, "space-tree-machine-devbox"), "space-tree-new-devbox"));
+  click(tree, "space-tree-new-local"); click(tree, "space-tree-new-devbox");
+  assert.deepEqual(state.commands, [{ name: "space.new", args: {} }, { name: "space.new", args: { machine: "devbox" } }]);
+});
+
+test("a local-only setup keeps a machine-specific new-space control, even with no Spaces yet", () => {
+  for (const empty of [false, true]) {
+    const view = fixture(); state.data.allMachines = [{ name: null, layout: "ready" }];
+    if (empty) state.data.allSpaces = [];
+    const tree = render(view);
+    assert.ok(find(find(tree, "space-tree-machine-local"), "space-tree-new-local"));
+    click(tree, "space-tree-new-local");
+    assert.deepEqual(state.commands, [{ name: "space.new", args: {} }]);
+  }
+});
+
 test("a bound inactive-Space agent retains its owner even if a later render browses another Space", () => {
   const view = fixture(); click(render(view), "space-tree-toggle-two"); render(view);
   const space = { ...historySpace, id: "two", folder: "/other" };

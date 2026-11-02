@@ -1,6 +1,6 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, Button } from "gpui-base";
-import { spaces, machines, focused, run, shared, setShared, openOverlay, hc } from "herdr";
+import { spaces, machines, run, shared, setShared, openOverlay, hc } from "herdr";
 
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 const palette = Object.keys(MARK);
@@ -75,7 +75,6 @@ export class SpaceTree {
   }
   render(content, compact, t) {
     const allSpaces = spaces(), groups = this.groups();
-    const current = allSpaces.find(s => s.id === focused()?.space) ?? allSpaces.find(s => s.active);
     const add = (machine, id) => Button.new(id).size(24).flex_none().rounded(4).cursor_pointer().disabled(!this.ready(machine))
       .text_color(t.muted).hover(el => el.bg(t.hover).text_color(t.foreground))
       .accessibility_label(machine ? `New space on ${machine}` : "New space on this computer").tooltip(machine ? `New space on ${machine}` : "New space")
@@ -111,12 +110,11 @@ export class SpaceTree {
     };
     return v_flex().id("space-agents").size_full().min_w(0).bg(t.chrome).role("region").accessibility_label("Spaces, agents and history")
       .when(!compact, el => el.child(h_flex().h(38).px(14).gap(6).flex_none().items_center()
-        .child(div().flex_1().text_size(12).font_medium().text_color(t.muted).child("Spaces"))
-        .child(add(current?.machine ?? null, "space-tree-new"))))
+        .child(div().flex_1().text_size(12).font_medium().text_color(t.muted).child("Spaces"))))
       .child(v_flex().id("space-tree-list").flex_1().min_h(0).px(compact ? 2 : 6).pb(8).gap(2).overflow_y_scrollbar().mode("always")
         .role("tree").accessibility_label("Spaces").track_focus(this.handle).tab_stop(true).on_key_down((e, cx) => this.key(e, cx))
         .children(groups.flatMap(({ machine, spaces: entries }) => [
-          ...(!compact && groups.length > 1 ? [h_flex().id(`space-tree-machine-${machine ?? "local"}`).h(30).px(8).gap(6).items_center().text_size(11).text_color(t.muted)
+          ...(!compact ? [h_flex().id(`space-tree-machine-${machine ?? "local"}`).h(30).px(8).gap(6).items_center().text_size(11).text_color(t.muted)
             .child(svg(`mods/workspace-chrome/${machine ? "server" : "monitor"}.svg`).size(13))
             .child(div().flex_1().min_w(0).truncate().child(machine ?? "This computer")).child(add(machine, `space-tree-new-${machine ?? "local"}`)),
           ...(!this.ready(machine) ? [div().px(10).py(4).text_size(11).text_color(t.dim).child("Machine unavailable")] : [])] : []),
