@@ -162,8 +162,8 @@ export class SpaceTree {
             .child(compact ? h_flex().size(24).rounded(5).bg(fill).items_center().justify_center().text_size(11).font_bold().text_color("#ffffff").child([...s.name][0]?.toUpperCase() ?? "?")
               : div().size(8).flex_none().rounded(3).bg(fill))
             .when(!compact, el => el.child(div().flex_1().min_w(0).text_size(13).font_medium().truncate().child(s.name)))
-            .when(["blocked", "done", "working"].includes(s.status), el => el.child(div().size(5).flex_none().rounded(3).bg(t[s.status])))))
-        .when(open && !compact && Boolean(branchContent), el => el.child(v_flex().id(`${prefix}-children-${s.id}`).w_full().min_w(0).flex_none().pl(18).pt(this.manageSpaces ? 4 : 0).pb(8).child(branchContent)));
+            .when(this.manageSpaces && ["blocked", "done", "working"].includes(s.status), el => el.child(div().size(5).flex_none().rounded(3).bg(t[s.status])))))
+        .when(open && !compact && Boolean(branchContent), el => el.child(v_flex().id(`${prefix}-children-${s.id}`).w_full().min_w(0).flex_none().pl(18).pt(4).pb(8).child(branchContent)));
     };
     return v_flex().id(prefix).size_full().min_w(0).min_h(0).bg(t.chrome).role("region").accessibility_label(this.title)
       .when(!compact && heading, el => el.child(h_flex().h(38).px(14).gap(6).flex_none().items_center()

@@ -104,6 +104,14 @@ test("an active agent row is separated from its selected Space header", () => {
   assert.ok(find(children, "space-agent-a1"));
 });
 
+test("History leaves a small gap below the Space header without making session rows taller", () => {
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-toggle-two"); render(view); seedHistory(view);
+  const tree = render(view), children = find(tree, "history-space-tree-children-two"), list = find(children, "session-history-list");
+  const gap = (children.attributes.pt?.[0] ?? 0) + (list.attributes.pt?.[0] ?? 0);
+  assert.equal(gap, 4, "match the small Space-to-row gap in Agents");
+  assert.equal(find(list, `session-history-${savedKey}`).attributes.h[0], 28, "keep dense History rows");
+});
+
 test("an unselected Space uses the same full-row cover for hover as selection", () => {
   for (const prefix of ["space-tree", "history-space-tree"]) {
     const view = fixture(); if (prefix === "history-space-tree") click(render(view), "history-area-toggle");
@@ -150,6 +158,21 @@ test("the native local-machine entry never duplicates Space branches or their se
   assert.equal(rendered.filter(id => id === "space-tree-branch-one").length, 1);
   assert.equal(rendered.filter(id => id === "space-tree-branch-two").length, 1);
   assert.equal(rendered.filter(id => id === "history-area").length, 1);
+});
+
+test("live Space activity appears only in Agents, not on History Space headers", () => {
+  for (const [status, color] of [["working", "#33cc66"], ["blocked", "#ffcc55"], ["done", "#8888cc"]]) {
+    const view = fixture();
+    state.theme = { [status]: color };
+    state.data.allSpaces[0].status = status;
+    click(render(view), "history-area-toggle");
+    const tree = render(view), agents = find(tree, "space-tree-name-one"), history = find(tree, "history-space-tree-name-one");
+    const colored = node => node.nodes.filter(child => child?.attributes?.bg?.[0] === color);
+    assert.equal(colored(agents).length, 1, `${status} remains visible in Agents`);
+    assert.equal(colored(history).length, 0, `${status} must not describe saved History`);
+    assert.deepEqual(history.nodes[0].attributes.bg, agents.nodes[0].attributes.bg, "the Space-color marker stays in both sections");
+  }
+  state.theme = null;
 });
 
 test("Agents Space branches toggle independently without switching the workspace", () => {
