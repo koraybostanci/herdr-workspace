@@ -6,7 +6,7 @@
 
 <p align="left">
   A focused Herdr workspace for people who run several coding agents at once:<br>
-  a Spaces dropdown, live agent cards, saved Session History and session tabs.
+  an Agents tree, separate saved History and session tabs.
 </p>
 
 ---
@@ -16,8 +16,8 @@
 | Piece | What it does |
 | --- | --- |
 | **Header** (`workspace-header`) | Left-aligned branding in fullscreen, with native window-button spacing retained in normal macOS windows. |
-| **Spaces** (`compact-spaces`) | A fixed 44-pixel dropdown that lists spaces grouped by machine. Its divider above Agents cannot be dragged. The popup opens downward. Keyboard highlight stays put, right-click opens actions, and you can reorder spaces on the same machine. |
-| **Agents and Session History** (`space-agents`) | Open agents and saved conversations in the selected Space, with a harness icon on every row. History offers Recent, By folder and By harness views, search and exact-session resume. |
+| **Agents** (`space-agents`) | All spaces are directly visible, grouped by machine, with flat agent rows directly beneath each opened Space. Several Spaces can stay open. Space names switch workspaces; right-click and same-machine reordering remain available. |
+| **History** (`space-agents`) | A separate, resizable area above Settings, collapsed by default. One search covers all Spaces and groups results by Space. Recent, By folder and By harness views and exact-session resume remain available. Browsing leaves Agents unchanged. |
 | **Session tabs** (`session-tabs`) | The tab strip, with the Files and Changes buttons. |
 | **Helper** | A small Node program that collects session metadata and catalogs saved Claude Code and OpenCode V2 conversations. The harness adapters report live session identity and activity. |
 
@@ -25,21 +25,25 @@ Everything ships as one bundle with one installer. The installer checks your Her
 
 ## Requirements
 
-- macOS and **Herdr 0.1.9**. Other platforms and versions are untested.
+- macOS and **Herdr 0.1.12**, the tested desktop version.
 - **Node 26 or newer**.
 - Optional: `git` for branch context, `gh` with your own sign-in for verified pull request links, and OpenCode or Claude Code for the harness adapters.
 
 The UI installs without GitHub credentials. A missing optional tool turns off only its own feature.
-A different Herdr version, such as 0.1.11, produces an unverified-version warning, not an installation blocker.
+Older, missing or unreadable Herdr versions and unsupported platforms block installation. Newer Herdr versions warn as unverified. Launch Herdr once to create its built-in files, and check `herdr-app --version` on your PATH.
+
+## Private beta
+
+This repository stays **private**. Authorized testers can download the pinned `v0.1.0-beta.1` source archive with their own GitHub account. See [the beta download and acceptance checklist](docs/private-beta.md). No invitation, public repository or shared token is required by the installer. A second physical Mac acceptance test is still pending.
 
 ## Fresh install
 
 Install Herdr and Node first. The clone command needs Git and access to this repository. Run these commands one at a time; **stop if `plan` reports any `blocked:` lines**.
 
 ```sh
-git clone git@github.com:koraybostanci/herdr-workspace.git
+git clone --branch v0.1.0-beta.1 git@github.com:koraybostanci/herdr-workspace.git
 cd herdr-workspace
-npm ci                              # installer dependency only; runs no scripts
+npm ci --ignore-scripts             # installer dependency only
 
 node bin/herdr-workspace.mjs plan   # preview. Writes nothing.
 node bin/herdr-workspace.mjs install
@@ -73,12 +77,10 @@ List only the harnesses you use. Without this opt-in, saved history can still be
 
 ## Upgrade an installer-managed installation
 
-From your repository checkout:
+Download and verify the next private prerelease into a new folder, or fetch its exact published tag in your checkout. Do not use an unverified moving branch as a release:
 
 ```sh
-git switch main
-git pull --ff-only
-npm ci
+npm ci --ignore-scripts
 node bin/herdr-workspace.mjs plan --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs install --configure-harnesses opencode,claude
 node bin/herdr-workspace.mjs doctor
@@ -114,7 +116,7 @@ See [docs/installation.md](docs/installation.md) for the full list of what chang
 
 ## Safety
 
-- **Preflight first.** A missing Herdr built-in mod or asset, or an old Node stops the install before any write.
+- **Preflight first.** An unsupported platform, old/unavailable Herdr, missing built-in mod or asset, or old Node stops the install before any write.
 - **No silent overwrites.** A file that already exists with different content blocks the install. `--adopt` replaces it only after saving a backup.
 - **Journaled.** Every change is recorded before it is made. An interrupted install resumes when you run the same command again.
 - **Minimal settings edits.** With harness opt-in, the installer adds or updates one OpenCode plugin entry and six Claude hooks. Comments, providers, models and credential helpers stay untouched.
@@ -129,11 +131,11 @@ Session History reads native Claude Code and OpenCode V2 metadata, including sav
 
 ## Session placement
 
-The selected Space filters both sections before view selection, search or counts. A resolved conversation appears once. Clicking a History row opens it for browsing without moving it to Agents. A new message or actual work activates it; it then stays in **Agents** even when idle or done, until closed. Working, blocked, done and idle remain activity badges, not placement rules. Disconnects retain the last confirmed placement.
+Agents and History each remember their own opened Spaces; several branches can stay open in either area. The single History search finds saved sessions across all Spaces and temporarily opens matching groups. Expansion does not change the active workspace. Agent Space names and session rows switch workspaces; History Space names only browse. Both areas share the same session partition for a Space. Clicking a History row opens it for browsing without moving it to Agents. A new message or actual work activates it; it then stays in **Agents** even when idle or done, until closed. Working, blocked, done and idle remain activity badges, not placement rules. Disconnects retain the last confirmed placement.
 
 Verified Space associations take priority. External conversations without one match the exact directory and machine; Spaces sharing a directory can discover the same history. Subdirectories and worktrees are not silently combined. History also holds sessions opened only for viewing; it does not claim that a conversation is stopped everywhere, and external activity can be unknown.
 
-History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#session-history) for states and limits.
+History uses dense single-line rows with a harness icon, title and age—no Resume button or second line. Clicking a row checks the exact saved ID, original folder, harness and execution context, then focuses an existing binding or opens a new tab for browsing. It never silently starts a replacement conversation or changes permissions. See [the sidebar guide](mods/space-agents/README.md#history) for states and limits.
 
 In the expanded sidebar, each history row also has a trash control. Confirming it permanently deletes the conversation from its original OpenCode or Claude source, including child sessions or subagent transcripts. Close the session in Herdr first. Failed deletion keeps the row; confirmed deletion removes its local metadata and does not change project files.
 
@@ -143,18 +145,21 @@ The Plan/Tasks panel, review system and Plan observers are no longer included. E
 
 ## Known limits
 
-- Native checks (`herdr-app check`) pass for all four mods. They do not test mouse, keyboard or pixels, so on-screen behaviour is not covered by automated tests here.
+- Native checks (`herdr-app check`) validate mod loading and an initial render. They do not test native mouse, keyboard or pixels; runtime-boundary tests cover navigation logic, and the rendered UI still needs a live check.
 - Naming is observe-only until it can be verified for your exact installation.
 
 More in [docs/limitations.md](docs/limitations.md).
 
 ## Develop
 
+Run these checks from an authenticated source checkout; release archives omit the test suite and Git metadata.
+
 ```sh
 npm ci
 (cd integrations/session-metadata && npm ci)   # helper dependencies for the source tests
 npm test                  # Node tests
 npm run test:clean-install  # install, read metadata and uninstall from a clean export
+npm run test:native-install # isolated profile, actual Herdr checker; macOS + Herdr required
 npm run check:privacy     # source allowlist and secret scan
 ```
 
@@ -171,4 +176,4 @@ docs/                   installation, architecture, limitations
 tests/  scripts/        regression tests, privacy scan, clean-install proof
 ```
 
-Architecture notes: [docs/architecture.md](docs/architecture.md). Third-party notices: [THIRD_PARTY.md](THIRD_PARTY.md).
+Architecture notes: [docs/architecture.md](docs/architecture.md). [Release process](docs/release-process.md). Owner material: [Apache-2.0](LICENSE). Third-party terms, including the separately installed Claude SDK: [THIRD_PARTY.md](THIRD_PARTY.md).

@@ -27,22 +27,13 @@
           "resizable": false,
           "children": [
             {
-              "id": "spaces",
-              "type": "block",
-              "content": {
-                "mod": "compact-spaces"
-              },
-              "size": {
-                "px": 44
-              },
-              "min": 44,
-              "max": 44
-            },
-            {
               "id": "agents",
               "type": "block",
               "content": {
-                "mod": "space-agents"
+                "mod": "space-agents",
+                "props": {
+                  "tree": true
+                }
               },
               "size": {
                 "weight": 1

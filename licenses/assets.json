@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/lucide-icons/lucide",
+  "tag": "0.468.0",
+  "revision": "f12b0de177fbc2a6795e99be065887e72b237123",
+  "replacementDate": "2026-11-02",
+  "license": {
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/LICENSE",
+    "path": "licenses/Lucide-0.468.0.txt",
+    "sha256": "1e7290b35280a048667bbf0ebabac1c7fd52a75300e8b2946ac165715997f2bc"
+  },
+  "ownerAdditionsLicense": "Apache-2.0",
+  "assets": [
+    {
+      "path": "mods/space-agents/pull-request.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/git-pull-request.svg",
+      "sourceSha256": "6dbc18c42d08f225e3fc0a34fe5bf62d8b2abae83ada8163f3bbb649f2b8d25f",
+      "shippedSha256": "6dbc18c42d08f225e3fc0a34fe5bf62d8b2abae83ada8163f3bbb649f2b8d25f",
+      "modifications": [],
+      "replacesSha256": "d14295c0fb4e3664ace1d9d33556ff62fb317fb07c53eacde2d8303e05b7b067"
+    },
+    {
+      "path": "mods/space-agents/trash.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/trash-2.svg",
+      "sourceSha256": "e63698acf757d3043fcb4a9ea6ffceff9dd84708707eafc879c86b34a6ff2786",
+      "shippedSha256": "e63698acf757d3043fcb4a9ea6ffceff9dd84708707eafc879c86b34a6ff2786",
+      "modifications": [],
+      "replacesSha256": "cb47a14b587b80a887d21c29cd96ccd0c8ff2667861df674408835817b05bc1d"
+    },
+    {
+      "path": "assets/logo.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/panels-top-left.svg",
+      "sourceSha256": "321a2a5500f2b814a2e62eb73c4b01dc65c7334fe2e6f7d77517239383e26bb1",
+      "shippedSha256": "5019e19076f2091fb3c7d142724e9085fec5a49de4b9a9ab046663154e48a234",
+      "modifications": [
+        "Inset the unchanged 24x24 glyph geometry at x=24, y=24 with width=80 and height=80 in a 128x128 document mark.",
+        "Set the glyph stroke to #7dd3fc; retain its stroke width of 2, round caps and joins.",
+        "Add a newly composed navy #0f1626 rounded rectangular background at (4,4), size 120x120, radius 28.",
+        "Add an accessible project title and a pinned provenance/modification comment."
+      ],
+      "replacesSha256": "5b06cedbf34351ae19ef855e5a233a6d3ffff0943210c0ec7d4dd7bde4bc283f"
+    }
+  ]
+}

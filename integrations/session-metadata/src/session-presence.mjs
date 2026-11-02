@@ -1,5 +1,5 @@
 import { OWNER, bindingKey, validBinding, producerMatches } from "./contracts.mjs";
-import { registryBindingKey } from "./session-registry.mjs";
+import { registryBindingKey, sessionIdentityKey } from "./session-registry.mjs";
 import { callPeer, ownerIsLive, reconcileBinding } from "./transport.mjs";
 
 export async function probeSessionBinding(binding, { run, env = {} }) {
@@ -44,12 +44,15 @@ export async function probeSessionBinding(binding, { run, env = {} }) {
   } catch { return result("unknown", "probe-unavailable"); }
 }
 
-export async function collectSessionPresence(runtime, peers = []) {
+export async function collectSessionPresence(runtime, peers = [], { session } = {}) {
+  const key = session && sessionIdentityKey(session);
+  const matches = binding => !key || sessionIdentityKey(binding.session) === key;
+  const relevantPeers = key ? peers.filter(peer => peer.host === session.host) : peers;
   const previous = runtime.previous ?? await runtime.store.readHistory?.();
-  const known = (previous?.sessions ?? []).flatMap(entry => entry.bindings ?? []);
+  const known = (previous?.sessions ?? []).flatMap(entry => entry.bindings ?? []).filter(matches);
   const presence = [], sources = [];
   let bindings;
-  try { bindings = await runtime.store.listBindings(); }
+  try { bindings = (await runtime.store.listBindings()).filter(matches); }
   catch { bindings = null; }
   for (const old of known.filter(b => !b.fromPeerId)) {
     if (bindings?.some(b => registryBindingKey(b) === registryBindingKey(old) && b.generation === old.generation)) continue;
@@ -61,14 +64,14 @@ export async function collectSessionPresence(runtime, peers = []) {
     presence.push(await probeSessionBinding({ ...old, ...binding, title: record?.canonicalTitle ?? old?.title,
       directory: binding.lookupDir ?? old?.directory }, runtime));
   }
-  for (const peer of peers) {
+  for (const peer of relevantPeers) {
     try {
-      const reply = await callPeer(peer, ["presence-snapshot", "--json"], runtime.run);
+      const reply = await callPeer(peer, ["presence-snapshot", ...(key ? ["--session", JSON.stringify(session)] : []), "--json"], runtime.run);
       const snapshot = reply.code === 0 && JSON.parse(reply.stdout);
       if (snapshot?.schema !== 1 || snapshot.owner !== OWNER || !Array.isArray(snapshot.presence)
         || snapshot.presence.some(o => !validBinding(o.binding) || o.binding.session.host !== peer.host || !["open", "closed", "unknown"].includes(o.state))) throw Error("Invalid peer presence");
       const received = [];
-      for (const observation of snapshot.presence) {
+      for (const observation of snapshot.presence.filter(observation => matches(observation.binding))) {
         let binding = { ...observation.binding, fromPeerId: peer.id };
         if (binding.mode === "inherited") binding = { ...binding, coreHost: peer.host, address: `${peer.target}/${binding.terminal}`,
           space: binding.space && { ...binding.space, id: `${peer.target}/${binding.space.id}` }, tab: binding.tab && `${peer.target}/${binding.tab}` };
@@ -96,6 +99,6 @@ export async function collectSessionPresence(runtime, peers = []) {
     }
   }
   // Unconfigured peers are not silently declared closed or contacted.
-  for (const old of known.filter(b => b.fromPeerId && !peers.some(peer => peer.id === b.fromPeerId))) presence.push({ state: "unknown", binding: old, reason: "peer-unconfigured" });
+  for (const old of known.filter(b => b.fromPeerId && !relevantPeers.some(peer => peer.id === b.fromPeerId))) presence.push({ state: "unknown", binding: old, reason: "peer-unconfigured" });
   return { presence, sources };
 }

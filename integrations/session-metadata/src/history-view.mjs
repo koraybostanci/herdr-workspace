@@ -47,7 +47,7 @@ export async function prepareSessionResume(runtime, { session, space, browsing =
     registry = await runtime.store.withHistoryMutation(async () => {
       const previous = await runtime.store.readHistory();
       if (!previous) return null;
-      const observed = await collectSessionPresence({ ...runtime, previous }, peers);
+      const observed = await collectSessionPresence({ ...runtime, previous }, peers, { session });
       const next = reconcileSessionRegistry(previous, { ...observed, now: runtime.clock() });
       await runtime.store.writeHistory(next, previous.revision);
       return next;

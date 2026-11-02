@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * Derived from Herdr v0.1.9, defaults/mods/spaces/main.js:
+ * https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/spaces/main.js
+ * Modified by koraybostanci in 2026: compact space selector, menu behavior and presentation.
+ * Copyright (c) 2026 koraybostanci (modifications only).
+ * See LICENSE and NOTICE in this mod directory.
+ */
+
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to

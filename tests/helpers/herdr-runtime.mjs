@@ -18,6 +18,7 @@ function build() {
   return proxy;
 }
 export const div = build, image = build, svg = build, v_flex = build, h_flex = build;
+export const v_resizable = id => build().id(id), resizable_panel = build;
 export const Button = { new: id => build().id(id) };
 export const Popover = { new: id => build().id(id) };
 export const TextView = { markdown: (id, markdown) => build().id(id).markdown(markdown).child(markdown) };
@@ -38,7 +39,8 @@ export const hc = async () => {assertNotRendering();return {code:0,stdout:JSON.s
 export const panes = () => state.data.allPanes;
 export const terminals = () => state.data.allTerminals;
 export const focused = () => state.data.focused ?? ({ space: state.data.selectedSpace });
-export const theme = () => new Proxy({}, { get: () => "#aabbcc" });
+export const props = () => state.props ?? null;
+export const theme = () => new Proxy({}, { get: (_target, key) => state.theme?.[key] ?? "#aabbcc" });
 export const layout = () => state.layout ?? ({ id: "sidebar", size: { px: state.width ?? 320 }, children: [{ id: "agents", content: { mod: "space-agents" } }] });
 export const shared = key => key === "layout" ? "herdr-workspace" : state.shared?.[key] ?? null;
 export const setShared = (key, value) => { state.shared ??= {}; state.shared[key] = value; };

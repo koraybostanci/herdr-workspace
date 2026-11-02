@@ -53,7 +53,7 @@ export function importsOf(text) {
 }
 export function assetRefsOf(text) {
   const refs = new Set();
-  for (const m of text.matchAll(/(["'`])(mods\/[A-Za-z0-9_-]+\/(?:(?!\1)[^\n])*?\.(?:svg|png|webp|json|js))\1/g)) refs.add(m[2].replace(/\$\{[^}]*\}/g, "*"));
+  for (const m of text.matchAll(/(["'`])((?:mods\/[A-Za-z0-9_-]+\/|frame\/|icons\/)(?:(?!\1)[^\n])*?\.(?:svg|png|webp|json|js))\1/g)) refs.add(m[2].replace(/\$\{[^}]*\}/g, "*"));
   return [...refs];
 }
 export function overlayModsOf(text) {
@@ -101,13 +101,17 @@ export async function validateBundle(bundle, root) {
     }
     for (const ref of assetRefsOf(text)) {
       const owner = ref.split("/")[1];
-      if (ownedMods.has(owner)) { if (!ref.includes("*") && !declared.has(ref)) add("undeclared-asset", { from: path, asset: ref }); }
+      if (ref.startsWith("mods/") && ownedMods.has(owner)) { if (!ref.includes("*") && !declared.has(ref)) add("undeclared-asset", { from: path, asset: ref }); }
       else if (ref.includes("*")) { if (!(bundle.host?.assetPatterns ?? []).includes(ref)) add("undeclared-asset", { from: path, asset: ref }); }
       else if (!hostAssets.has(ref)) add("undeclared-asset", { from: path, asset: ref });
     }
     for (const name of overlayModsOf(text)) if (!ownedMods.has(name) && !hostMods.has(name)) add("undeclared-overlay-mod", { from: path, name });
   }
-  for (const asset of hostAssets) if (!/^icons\/[A-Za-z0-9_.-]+\.svg$/.test(asset) && !hostMods.has(asset.split("/")[1])) add("asset-without-host-mod", { asset });
+  for (const asset of hostAssets) {
+    const globalAsset = /^icons\/[A-Za-z0-9_-]+\.svg$/.test(asset) || /^frame\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.(?:svg|png|webp)$/.test(asset);
+    const modAsset = /^mods\/[A-Za-z0-9_-]+\/[A-Za-z0-9_./-]+\.(?:svg|png|webp|json|js)$/.test(asset) && hostMods.has(asset.split("/")[1]);
+    if (!safeRelative(asset) || (!globalAsset && !modAsset)) add("asset-without-host-mod", { asset });
+  }
   for (const pattern of patterns) if (![...hostAssets].some(a => pattern.test(a))) add("empty-asset-pattern", { pattern: String(pattern) });
 
   for (const mod of bundle.mods ?? []) {

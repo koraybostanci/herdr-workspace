@@ -66,6 +66,68 @@ test("an already-open session is focused rather than launched again", async t =>
   assert.equal(result.kind, "focus"); assert.equal(result.terminal, "t-fixture");
 });
 
+test("opening a local saved session does not wait for unrelated offline peers", async t => {
+  const f = await fixture(t, "claude"), run = f.runtime.run, peerCalls = [];
+  f.runtime.peers = [{ id: "offline", host: "remote", transport: "ssh", target: "unrelated-machine" }];
+  f.runtime.run = async (host, command, args, options) => {
+    if (command === "ssh") { peerCalls.push(args); return { code: 1, stdout: "", stderr: "offline" }; }
+    return run(host, command, args, options);
+  };
+  const result = await prepareSessionResume(f.runtime, { session: f.session, space: f.space, browsing: true });
+  assert.equal(result.kind, "launch");
+  assert.deepEqual(result.args.argv, ["claude", "--resume", "claude_saved"]);
+  assert.deepEqual(peerCalls, [], "unrelated remote timeout must not be on the local opening path");
+  assert.equal(await f.store.historyOpening(f.session), true, "the durable browsing/deletion guard remains");
+});
+
+test("resume checks only bindings for the full selected session identity", async t => {
+  const f = await fixture(t, "claude"), run = f.runtime.run, probed = [];
+  const neighbor = { ...f.binding, session: { ...f.session, authority: "another-profile" }, terminal: "t-neighbor", lookupDir: f.root };
+  await f.store.bind(neighbor, null);
+  const current = await f.store.readHistory();
+  const neighborEntry = { ...f.entry, session: neighbor.session, bindings: [{ ...neighbor, space: f.space, address: neighbor.terminal,
+    presence: "unknown", connection: "unavailable" }] };
+  await f.store.writeHistory({ ...current, revision: current.revision + 1, sessions: [...current.sessions, neighborEntry] }, current.revision);
+  f.runtime.run = async (host, command, args, options) => {
+    if (command === "hc") { probed.push(args); return { code: 1, stdout: "", stderr: "unavailable" }; }
+    return run(host, command, args, options);
+  };
+  const result = await prepareSessionResume(f.runtime, { session: f.session, space: f.space });
+  assert.equal(result.kind, "launch");
+  assert.deepEqual(probed, [], "a matching ID in another authority is not the selected conversation");
+  assert.deepEqual((await f.store.readHistory()).sessions.find(entry => entry.session.authority === "another-profile"), neighborEntry,
+    "opening one session must not rewrite unrelated presence");
+});
+
+test("selected-session presence that cannot be verified still prevents a duplicate launch", async t => {
+  const f = await fixture(t, "claude"), binding = { ...f.binding, session: f.session, space: f.space, address: "t-fixture", tab: "tab1",
+    presence: "open", connection: "confirmed", lookupDir: f.root };
+  await f.store.bind(binding, null);
+  await f.store.writeHistory({ ...historyRegistry([{ ...f.entry, bindings: [binding] }], [f.source]), revision: 2 }, 1);
+  f.runtime.run = async (_host, command) => {
+    assert.equal(command, "hc", "an uncertain existing binding must be checked before native lookup or launch");
+    return { code: 1, stdout: "", stderr: "unavailable" };
+  };
+  const result = await prepareSessionResume(f.runtime, { session: f.session, space: f.space, browsing: true });
+  assert.equal(result.error, "connection-unavailable");
+  assert.equal(result.kind, undefined);
+  assert.equal(await f.store.historyOpening(f.session), false);
+});
+
+test("resume refuses a stale confirmed binding when its configured peer changes host", async t => {
+  const f = await fixture(t, "claude"), session = { ...f.session, host: "remote" };
+  const source = { ...f.source, host: "remote", id: JSON.stringify(["remote", "claude", "claude"]), peerId: "peer" };
+  const space = { ...f.space, host: "remote", id: "box/one", machine: "box" };
+  const binding = { ...f.binding, session, fromPeerId: "peer", coreHost: "remote", address: "box/t-fixture", space,
+    presence: "open", connection: "confirmed" };
+  await f.store.writeHistory({ ...historyRegistry([{ ...f.entry, session, sourceId: source.id, bindings: [binding] }], [source]), revision: 2 }, 1);
+  f.runtime.peers = [{ id: "peer", host: "replacement", target: "box", transport: "ssh" }];
+  f.runtime.run = async () => assert.fail("an unverified binding must not focus or launch through its replacement peer");
+  const result = await prepareSessionResume(f.runtime, { session, space, browsing: true });
+  assert.equal(result.error, "connection-unavailable");
+  assert.equal(result.kind, undefined);
+});
+
 test("shell-special characters in a folder or title remain literal launch arguments", async t => {
   const f = await fixture(t);
   const directory = f.root + "/space; literal $(text)";

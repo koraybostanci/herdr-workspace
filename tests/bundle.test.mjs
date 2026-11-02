@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, writeFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
-import { loadBundle, validateBundle } from "../src/bundle.mjs";
+import { assetRefsOf, loadBundle, validateBundle } from "../src/bundle.mjs";
 import { exportBundle, repoRoot } from "./helpers/bundle-export.mjs";
 
 const rules = result => result.issues.map(i => i.rule);
@@ -77,5 +77,21 @@ test("global program icons do not require a fake host mod and cannot escape icon
   for (const asset of ["icons/../other.svg", "other/file.svg"]) {
     const result = await validateBundle({ ...bundle, host: { ...bundle.host, assets: [...bundle.host.assets, asset] } }, repoRoot);
     assert.ok(result.issues.some(i => i.rule === "asset-without-host-mod" && i.asset === asset));
+  }
+});
+
+test("static frame images are required host assets", async () => {
+  assert.deepEqual(assetRefsOf('image("frame/welcome/herdr.png"); svg("icons/claude.svg");'), ["frame/welcome/herdr.png", "icons/claude.svg"]);
+  const bundle = await loadBundle(repoRoot);
+  assert.ok(bundle.host.assets.includes("frame/welcome/herdr.png"));
+  const missing = { ...bundle, host: { ...bundle.host, assets: bundle.host.assets.filter(asset => asset !== "frame/welcome/herdr.png") } };
+  assert.ok((await validateBundle(missing, repoRoot)).issues.some(issue => issue.rule === "undeclared-asset" && issue.asset === "frame/welcome/herdr.png"));
+});
+
+test("host asset declarations cannot escape their supported resource directories", async () => {
+  const bundle = await loadBundle(repoRoot);
+  for (const asset of ["frame/../other.png", "frame/welcome/../../outside.png", "mods/undeclared/no.svg", "mods/files/../outside.svg", "frame/welcome/link.js"]) {
+    const result = await validateBundle({ ...bundle, host: { ...bundle.host, assets: [...bundle.host.assets, asset] } }, repoRoot);
+    assert.ok(result.issues.some(issue => issue.rule === "asset-without-host-mod" && issue.asset === asset), asset);
   }
 });

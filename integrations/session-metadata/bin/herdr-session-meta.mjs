@@ -82,7 +82,8 @@ export async function main(argv = process.argv.slice(2), runtime = null) {
   else if (command === "snapshot") output = await producerSnapshot(runtime);
   else if (command === "presence-snapshot") {
     const { collectSessionPresence } = await import("../src/session-presence.mjs");
-    output = { schema: 1, owner: OWNER, ...await collectSessionPresence(runtime) };
+    const session = argument(argv, "session");
+    output = { schema: 1, owner: OWNER, ...await collectSessionPresence(runtime, [], { session: session === undefined ? undefined : JSON.parse(session) }) };
   }
   else if (command === "history-snapshot") {
     const { refreshSessionCatalog } = await import("../src/history-catalog.mjs");

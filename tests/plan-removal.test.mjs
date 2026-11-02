@@ -75,7 +75,7 @@ test('already missing Plan files are retired without leaving failed doctor check
   await unlink(join(h.appHome,'mods/plan/main.js'));
   await applyInstall(await planOf(h),{run:h.run});
   const out=[];
-  assert.equal(await runCli(['doctor','--app-home',h.appHome,'--state-root',h.stateRoot],{run:h.run,node:NODE,env:{HOME:h.home},
+  assert.equal(await runCli(['doctor','--app-home',h.appHome,'--state-root',h.stateRoot],{run:h.run,node:NODE,platform:'darwin',env:{HOME:h.home},
     stdout:s=>out.push(s),stderr:()=>{},sourceRoot:h.sourceRoot}),0,out.join(''));
 });
 
@@ -86,7 +86,7 @@ test('retirement keeps user-modified Plan files rather than deleting their chang
   assert.equal(await h.read(file),'user edits');
   assert.ok(plan.warnings.some(w=>w.path===file));
   const out=[];
-  assert.equal(await runCli(['doctor','--app-home',h.appHome,'--state-root',h.stateRoot],{run:h.run,node:NODE,env:{HOME:h.home},
+  assert.equal(await runCli(['doctor','--app-home',h.appHome,'--state-root',h.stateRoot],{run:h.run,node:NODE,platform:'darwin',env:{HOME:h.home},
     stdout:s=>out.push(s),stderr:()=>{},sourceRoot:h.sourceRoot}),0,out.join(''));
 });
 

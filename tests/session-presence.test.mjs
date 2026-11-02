@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { probeSessionBinding, collectSessionPresence } from "../integrations/session-metadata/src/session-presence.mjs";
 import { metadataFixture, isolatedFixture } from "./helpers/session-metadata-fixtures.mjs";
 import { bindingKey, verifyInheritedBinding } from "../integrations/session-metadata/src/contracts.mjs";
+import { main } from "../integrations/session-metadata/bin/herdr-session-meta.mjs";
 
 function fixture() {
   const { binding } = metadataFixture();
@@ -118,4 +119,55 @@ test("confirmed paired closure reaches the registry even after its origin is gon
       return { code: 0, stdout: JSON.stringify({ schema: 1, owner: "herdr-session-metadata", presence: [{ state: "closed", binding }] }) };
     } }, [{ id: "peer", host: "remote", target: "box", transport: "ssh" }]);
   assert.equal(result.presence[0].state, "closed");
+});
+
+test("scoped presence checks keep other bindings and peers off the selected session path", async () => {
+  const f = fixture(), neighbor = { ...f.binding, terminal: "t-neighbor", session: { ...f.binding.session, authority: "other" } };
+  const commands = [];
+  const runtime = { env: {}, previous: { sessions: [{ bindings: [f.binding, neighbor] }] },
+    store: { listBindings: async () => [f.binding, neighbor] }, run: async (host, command, args, options) => {
+      commands.push({ command, args });
+      if (command === "ssh") return { code: 1, stdout: "", stderr: "offline" };
+      return f.run(host, command, args, options);
+    } };
+  const result = await collectSessionPresence(runtime, [{ id: "other", host: "remote", target: "remote-box", transport: "ssh" }], { session: f.binding.session });
+  assert.equal(result.presence.length, 1);
+  assert.equal(result.presence[0].binding.terminal, "t-fixture");
+  assert.equal(result.presence[0].state, "open");
+  assert.deepEqual(commands.filter(call => call.command === "hc").map(call => call.args[1]), ["t-fixture"]);
+  assert.equal(commands.some(call => call.command === "ssh"), false);
+});
+
+test("scoped remote presence requests the exact session and ignores neighboring observations", async () => {
+  const f = fixture(), peer = { id: "peer", host: "remote", target: "box", transport: "ssh" };
+  const binding = { ...f.binding, session: { ...f.binding.session, host: "remote" } }, neighbor = { ...binding, terminal: "t-other", session: { ...binding.session, authority: "other" } };
+  const result = await collectSessionPresence({ env: {}, previous: { sessions: [] }, store: { listBindings: async () => [] },
+    run: async (_host, command, args) => {
+      assert.equal(command, "ssh");
+      assert.ok(args.at(-1).includes("'--session' '" + JSON.stringify(binding.session) + "'"));
+      return { code: 0, stdout: JSON.stringify({ schema: 1, owner: "herdr-session-metadata", presence: [{ state: "closed", binding }, { state: "closed", binding: neighbor }] }) };
+    } }, [peer], { session: binding.session });
+  assert.equal(result.presence.length, 1);
+  assert.deepEqual(result.presence[0].binding.session, binding.session);
+});
+
+test("the peer presence CLI honors the selected-session filter", async t => {
+  const f = fixture(), isolated = await isolatedFixture(); t.after(isolated.cleanup);
+  const neighbor = { ...f.binding, terminal: "t-neighbor", session: { ...f.binding.session, authority: "other" } };
+  await isolated.store.bind(f.binding, null); await isolated.store.bind(neighbor, null);
+  const output = [];
+  t.mock.method(process.stdout, "write", value => { output.push(value); return true; });
+  assert.equal(await main(["presence-snapshot", "--session", JSON.stringify(f.binding.session), "--json"], { ...isolated, env: {}, run: f.run }), 0);
+  const result = JSON.parse(output.join(""));
+  assert.equal(result.presence.length, 1);
+  assert.deepEqual(result.presence[0].binding.session, f.binding.session);
+});
+
+test("scoped presence does not trust a cached binding after its peer changes host identity", async () => {
+  const f = fixture(), old = { ...f.binding, fromPeerId: "peer", session: { ...f.binding.session, host: "remote" } };
+  const result = await collectSessionPresence({ env: {}, previous: { sessions: [{ bindings: [old] }] }, store: { listBindings: async () => [] },
+    run: async () => assert.fail("the replacement peer must not be contacted for another host's conversation") },
+  [{ id: "peer", host: "replacement", target: "box", transport: "ssh" }], { session: old.session });
+  assert.equal(result.presence.length, 1);
+  assert.equal(result.presence[0].state, "unknown", "an unverified old peer is not confirmed open or closed");
 });

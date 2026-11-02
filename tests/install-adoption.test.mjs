@@ -165,7 +165,7 @@ test("an integration array removed after planning is not silently recreated", as
 test("CLI explains required adoption and previews replacement without writes", async t => {
   const h = await unmanaged(t), before = await h.list(h.home), out = [], err = [];
   const argv = ["plan", "--app-home", h.appHome, "--state-root", h.stateRoot, "--opencode-path", h.opencodePath, "--claude-path", h.claudePath, "--configure-harnesses", "opencode,claude"];
-  const options = { run: h.run, node: NODE, env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot };
+  const options = { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot };
   assert.equal(await runCli(argv, options), 1);
   assert.match(err.join(""), /--adopt/);
   out.length = 0; err.length = 0;
@@ -179,7 +179,7 @@ test("CLI explains required adoption and previews replacement without writes", a
 test("documented CLI migration installs, verifies and repeats without duplicate integrations", async t => {
   const h = await unmanaged(t), out = [], err = [];
   const paths = ["--app-home", h.appHome, "--state-root", h.stateRoot, "--opencode-path", h.opencodePath, "--claude-path", h.claudePath];
-  const options = { run: h.run, node: NODE, env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot };
+  const options = { run: h.run, node: NODE, platform: "darwin", env: { HOME: h.home }, stdout: s => out.push(s), stderr: s => err.push(s), sourceRoot: h.sourceRoot };
   assert.equal(await runCli(["install", ...paths, "--adopt", "--configure-harnesses", "opencode,claude"], options), 0, err.join(""));
   const plan = await planOf(h);
   await assertIntegrations(h, plan);

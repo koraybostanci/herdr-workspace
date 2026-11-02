@@ -2,7 +2,9 @@
 
 ## Platform and versions
 
-Only macOS with Herdr 0.1.9 and Node 26 has been tested. Preflight warns on any other Herdr version or platform. Nothing here claims Windows or Linux support.
+The tested baseline is macOS with Herdr 0.1.12 and Node 26+. Preflight blocks older/unavailable hosts and unsupported platforms. It warns for newer hosts, which remain unverified. Nothing here claims Windows or Linux support or certification for every future Node major.
+
+The isolated native-profile test runs on the developer's Mac, not a second physical machine. It uses synthetic settings and history plus the actual Herdr checker. External-Mac acceptance remains pending; use [the tester checklist](private-beta.md#external-mac-acceptance-checklist).
 
 ## Native interface
 
@@ -34,4 +36,4 @@ The remaining metadata audit items from the original development are not part of
 
 ## Licensing
 
-The four mods derive from default Herdr mods. `THIRD_PARTY.md` lists an open item: confirm the Herdr license terms for derived code before this repository leaves private use. The repository's own `LICENSE` grants no rights yet.
+Owner material uses Apache-2.0. The adapted Herdr code and current SVG assets have pinned provenance and retained notices; see [THIRD_PARTY.md](../THIRD_PARTY.md). Herdr itself is not bundled. npm dependencies retain their own terms. In particular, the Claude Agent SDK is not Apache-licensed and is downloaded separately during installation. This inventory is not legal advice or approval of a recipient's SDK eligibility. Private repository access does not expand third-party rights.

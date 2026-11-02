@@ -1,0 +1,146 @@
+herdr-workspace / space-agents
+Copyright (c) 2026 koraybostanci (workspace additions and modifications)
+
+Includes code adapted from Herdr v0.1.9, defaults/mods/agents/main.js:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/agents/main.js
+The mod descriptor adapts the corresponding upstream mod.json metadata.
+Original contributors retain their rights in the upstream code.
+
+Modified by koraybostanci in 2026: substantial adaptation into selected-space
+agent cards, repository grouping, session metadata and history. This is not
+an unchanged clone. Supporting workspace modules were added in this repository.
+space-tree.js also shares the Spaces palette and adapts its machine-refresh
+pattern from Herdr v0.1.9, defaults/mods/spaces/main.js:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/mods/spaces/main.js
+That ancillary reuse is not represented as entirely independent implementation.
+space-tree.js carries a pinned source and modification header; its behavior
+is unchanged by the legal-header addition.
+
+Upstream code and owner modifications are licensed under Apache-2.0.
+The full license is in LICENSE in this directory. Pinned upstream license:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/LICENSE
+The pinned upstream tree has no root NOTICE or legal headers in this mod's
+main.js or descriptor. Source provenance is recorded here independently of
+any cloned_from metadata.
+
+Herdr supplies runtime modules, other mods, fonts, agent/brand icons and
+referenced workspace-chrome glyphs. They are not bundled in this mod. Names
+and marks remain their owners'; no trademark rights or endorsement are implied.
+Separately downloaded Anthropic SDK packages have their own terms, not this
+mod's Apache license. For the full archive inventory, see root THIRD_PARTY.md.
+
+Bundled canonical Lucide icons
+-----------------------------
+During beta hardening on 2026-11-02, the previous pull-request.svg and trash.svg
+were replaced with exact, unmodified copies from Lucide 0.468.0, immutable
+commit f12b0de177fbc2a6795e99be065887e72b237123:
+
+pull-request.svg <- icons/git-pull-request.svg:
+https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/git-pull-request.svg
+Pristine and shipped SHA-256:
+6dbc18c42d08f225e3fc0a34fe5bf62d8b2abae83ada8163f3bbb649f2b8d25f
+
+trash.svg <- icons/trash-2.svg:
+https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/trash-2.svg
+Pristine and shipped SHA-256:
+e63698acf757d3043fcb4a9ea6ffceff9dd84708707eafc879c86b34a6ff2786
+
+Both retain their original 24x24 viewBox, currentColor and stroke width of 2.
+The native controls still set the displayed sizes; no control logic changed.
+These glyphs retain Lucide's terms, not the owner's Apache license.
+
+Full license from the same pinned Lucide revision:
+https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/LICENSE
+License SHA-256:
+1e7290b35280a048667bbf0ebabac1c7fd52a75300e8b2946ac165715997f2bc
+
+ISC License
+
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Earlier icon notices retained as historical attribution
+------------------------------------------------------
+The earlier pull-request glyph's source was not recorded beyond a Lucide-style
+description; the earlier trash glyph had no recorded external source. Their
+replacement does not invent confirmation of historical authorship. Current
+distributed files use the verified sources above. Earlier repository and
+Herdr-sourced notices remain below; they are not source evidence for the
+current canonical icons.
+
+Retained pre-existing attribution for pull-request.svg:
+ISC License. Copyright (c) for portions of Lucide are held by Cole Bemis
+2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are
+held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Earlier full Lucide/Feather license text, retained without alteration from:
+https://raw.githubusercontent.com/herdrdev/herdr-app/3e32d75e7aa2327d7b1f89caf3d5dafd1f44f1b2/defaults/icons/LICENSE-Lucide.txt
+This historical notice is retained as attribution, not as a claim about the
+superseded glyphs' exact source or clearance to redistribute historical blobs.
+
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

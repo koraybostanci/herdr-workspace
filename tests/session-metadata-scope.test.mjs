@@ -125,3 +125,56 @@ test('refresh repairs an ungoverned file scope using the newest governed work ra
   ]},'title',3000);
   assert.equal(projectSessionCard({cwd:'/launch'},await f.store.read(f.key)).cwd,f.directory);
 });
+
+async function globalInstructions(f) {
+  const home=join(f.root,'home'),directory=join(home,'.agents');
+  await mkdir(directory,{recursive:true});await writeFile(join(directory,'AGENTS.md'),'# Global agent instructions\n');
+  f.deps.homeDirectory=home;
+  return directory;
+}
+
+test('incidental global agent instruction edits cannot replace the established project',async t=>{
+  const f=await fixture(t),instructions=await globalInstructions(f);
+  await f.observe('project',{cwd:'/diagnostics/incident-docs'},'location');
+  await f.observe('global-rule',{tool:'functions.patch',patchText:`*** Begin Patch\n*** Update File: ${instructions}/AGENTS.md\n@@\n-old\n+new\n*** End Patch`},'tool',2000);
+  const record=await f.store.read(f.key);
+  assert.equal(record.workScope.path,'/diagnostics/incident-docs');
+  assert.equal(record.activeRepo,'github.com/team/incident-docs');
+});
+
+test('refresh repairs an old global-instruction scope using earlier project work',async t=>{
+  const f=await fixture(t),instructions=await globalInstructions(f);
+  await f.store.write({...f.record,activeRepo:null,workScope:{version:1,host:'local',path:instructions,source:'successful-file-work',eventId:'global-rule',eventAt:2000}},null);
+  await f.observe('repair',{scopeEvidence:[
+    {eventId:'project-work',eventAt:1000,operation:{kind:'directory',paths:['/diagnostics/incident-docs'],source:'successful-task-command'}},
+    {eventId:'global-rule',eventAt:2000,operation:{kind:'file',paths:[join(instructions,'AGENTS.md')],source:'successful-file-work'}},
+  ]},'title',3000);
+  const record=await f.store.read(f.key);
+  assert.equal(record.workScope.path,'/diagnostics/incident-docs');
+  assert.equal(projectSessionCard({cwd:'/launch'},record).directory,'incident-docs');
+});
+
+test('an explicit global-instructions location remains valid primary work',async t=>{
+  const f=await fixture(t),instructions=await globalInstructions(f);
+  await f.observe('explicit-config-work',{cwd:instructions},'location');
+  await f.observe('edit-config',{tool:'write',filePath:join(instructions,'AGENTS.md')},'tool',2000);
+  await f.observe('refresh-config',{},'title',3000);
+  assert.equal((await f.store.read(f.key)).workScope.path,instructions);
+});
+
+test('an explicit nested global-instructions task survives an edit governed by the parent',async t=>{
+  const f=await fixture(t),instructions=await globalInstructions(f),directory=join(instructions,'skills');
+  await mkdir(join(directory,'find-skills'),{recursive:true});
+  await f.observe('explicit-skill-work',{cwd:directory},'location');
+  await f.observe('edit-skill',{tool:'write',filePath:join(directory,'find-skills','SKILL.md')},'tool',2000);
+  await f.observe('refresh-skill',{},'title',3000);
+  assert.equal((await f.store.read(f.key)).workScope.path,directory);
+});
+
+test('project-local agent instructions are still project work',async t=>{
+  const f=await fixture(t);await globalInstructions(f);
+  await mkdir(join(f.directory,'.agents'),{recursive:true});
+  await f.observe('project',{cwd:'/diagnostics/incident-docs'},'location');
+  await f.observe('project-rule',{tool:'write',filePath:join(f.directory,'.agents','rules.md')},'tool',2000);
+  assert.equal((await f.store.read(f.key)).workScope.path,f.directory);
+});

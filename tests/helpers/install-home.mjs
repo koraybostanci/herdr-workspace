@@ -19,7 +19,7 @@ export async function installHome(t, { sourceRoot = repoRoot, hostOptions, tools
   const { cp } = await import("node:fs/promises");
   await cp(host, appHome, { recursive: true });
   const calls = [];
-  const base = fakeRun({ node: { code: 0, stdout: "" }, git: { code: 0, stdout: "git version 2" }, gh: { code: 0, stdout: "gh 2" }, "herdr-app": { code: 0, stdout: "herdr-app 0.1.9" }, ...tools });
+  const base = fakeRun({ node: { code: 0, stdout: "" }, git: { code: 0, stdout: "git version 2" }, gh: { code: 0, stdout: "gh 2" }, "herdr-app": { code: 0, stdout: "herdr-app 0.1.12" }, ...tools });
   // npm ci is simulated: it records the call and creates the dependency folders the lockfile would install.
   const run = async (command, args = [], options = {}) => {
     calls.push({ command, args, cwd: options.cwd });
