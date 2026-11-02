@@ -115,45 +115,60 @@ function emptyHistory(view) {
   return render(view);
 }
 
-test("empty History Spaces become aligned collapsed leaf rows without changing Agents", () => {
+test("empty History Spaces keep a collapsed chevron without changing Agents", () => {
   const view = fixture(), tree = emptyHistory(view);
   assert.ok(find(tree, "history-space-tree-name-one"));
-  assert.equal(find(tree, "history-space-tree-toggle-one"), undefined);
+  const toggle = find(tree, "history-space-tree-toggle-one");
+  assert.ok(toggle, "empty Spaces must retain their chevron");
+  assert.equal(toggle.attributes.disabled[0], true);
   assert.equal(find(tree, "history-space-tree-children-one"), undefined);
   assert.equal(view.historyTree.expandedIds.has("one"), false);
   assert.equal(state.shared["space-agents.history.tree"].expandedIds.includes("one"), false);
-  assert.equal(find(tree, "history-space-tree-row-one").nodes[0].attributes.size[0], 24, "reserve the chevron column so names stay aligned");
+  assert.equal(find(tree, "history-space-tree-toggle-one").attributes.size[0], 24, "the chevron column keeps names aligned");
   assert.ok(find(tree, "space-tree-toggle-one"));
   assert.ok(find(tree, "space-tree-children-one"));
 });
 
-test("an empty History name rechecks without expanding and restores expansion when sessions arrive", async () => {
-  const view = fixture(); emptyHistory(view); state.tasks = []; ownedRuntime();
-  state.execute = async (_command, args) => {
-    assert.equal(args[1], "history-view");
-    const request = JSON.parse(args[args.indexOf("--request") + 1]);
-    return { code: 0, stdout: JSON.stringify(createHistoryView(historyRegistry([historyEntry("new", { title: "New saved session" })]), request)) };
-  };
-  try {
-    click(render(view), "history-space-tree-name-one");
-    assert.equal(view.historyTree.expandedIds.has("one"), false);
-    assert.equal(view.controllers.get("one").loading, true);
-    await Promise.all(state.tasks.splice(0).map(task => task()));
-    const updated = render(view);
-    assert.ok(find(updated, "history-space-tree-toggle-one"));
-    assert.equal(find(updated, "history-space-tree-children-one"), undefined, "successful discovery must not steal expansion");
-    click(updated, "history-space-tree-toggle-one");
-    assert.ok(text(find(render(view), "history-space-tree-children-one")).includes("New saved session"));
-    assert.deepEqual(state.commands, []);
-  } finally { state.execute = null; }
+test("empty History name and chevron clicks do not expand, recheck or change selection", () => {
+  const view = fixture(), tree = emptyHistory(view), controller = view.controllers.get("one");
+  const before = JSON.stringify(state.shared), request = controller.currentRequest;
+  state.tasks = []; state.focusedHandle = null;
+  click(tree, "history-space-tree-name-one");
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  assert.equal(controller.loading, false);
+  assert.equal(controller.currentRequest, request);
+  assert.equal(state.tasks.length, 0);
+  assert.equal(state.focusedHandle, null);
+  assert.equal(JSON.stringify(state.shared), before);
+  assert.deepEqual(state.commands, []);
+  click(tree, "history-space-tree-toggle-one");
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  assert.equal(state.tasks.length, 0);
+  assert.equal(JSON.stringify(state.shared), before);
 });
 
-test("a failed empty-Space recheck exposes a usable Retry area", async () => {
-  const view = fixture(); emptyHistory(view); state.tasks = []; ownedRuntime();
+test("a refreshed nonempty Space enables its chevron and normal expansion", () => {
+  const view = fixture(); emptyHistory(view);
+  seed(view, "one", [historyEntry("new", { title: "New saved session" })]);
+  const tree = render(view), toggle = find(tree, "history-space-tree-toggle-one");
+  assert.equal(toggle.attributes.disabled[0], false);
+  assert.deepEqual(toggle.attributes.accessibility_label, ["Expand First"]);
+  assert.equal(find(tree, "history-space-tree-children-one"), undefined);
+  click(tree, "history-space-tree-toggle-one");
+  const expanded = render(view);
+  assert.deepEqual(find(expanded, "history-space-tree-toggle-one").attributes.accessibility_label, ["Collapse First"]);
+  assert.ok(text(find(expanded, "history-space-tree-children-one")).includes("New saved session"));
+  click(expanded, "history-space-tree-toggle-one");
+  assert.equal(find(render(view), "history-space-tree-children-one"), undefined);
+});
+
+test("failed History loads still expose Retry instead of being treated as empty", async () => {
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-name-one"); render(view);
+  seed(view, "one", []);
+  const controller = view.controllers.get("one"); controller.loading = false; controller.error = "History unavailable. Check the metadata helper, then retry.";
+  state.tasks = []; ownedRuntime();
   state.execute = async () => ({ code: 1, stdout: "", stderr: "unavailable" });
   try {
-    click(render(view), "history-space-tree-name-one");
-    await Promise.all(state.tasks.splice(0).map(task => task()));
     const tree = render(view), branch = find(tree, "history-space-tree-children-one");
     assert.ok(branch);
     assert.ok(find(tree, "history-space-tree-toggle-one"));
@@ -168,7 +183,7 @@ test("a failed empty-Space recheck exposes a usable Retry area", async () => {
   } finally { state.execute = null; }
 });
 
-test("empty-Space keyboard input cannot expand a leaf and Enter rechecks it", () => {
+test("empty-Space keyboard activation cannot expand or recheck it", () => {
   const view = fixture(), tree = emptyHistory(view), list = find(tree, "history-space-tree-list");
   list.attributes.track_focus[0].focus(); view.historyTree.highlightedId = "one"; state.tasks = [];
   list.attributes.on_key_down[0]({ keystroke: "right" }, context());
@@ -176,8 +191,8 @@ test("empty-Space keyboard input cannot expand a leaf and Enter rechecks it", ()
   assert.equal(state.tasks.length, 0);
   list.attributes.on_key_down[0]({ keystroke: "enter" }, context());
   assert.equal(view.historyTree.expandedIds.has("one"), false);
-  assert.equal(view.controllers.get("one").loading, true);
-  assert.equal(state.tasks.length, 1);
+  assert.equal(view.controllers.get("one").loading, false);
+  assert.equal(state.tasks.length, 0);
 });
 
 test("removing the last History session collapses only that Space", () => {
@@ -187,7 +202,7 @@ test("removing the last History session collapses only that Space", () => {
   view.controllers.get("one").loading = false; view.controllers.get("two").loading = false;
   view.controllers.get("one").forgetSession('["local","local","opencode-v2","last"]');
   const tree = render(view);
-  assert.equal(find(tree, "history-space-tree-toggle-one"), undefined);
+  assert.equal(find(tree, "history-space-tree-toggle-one").attributes.disabled[0], true);
   assert.equal(find(tree, "history-space-tree-children-one"), undefined);
   assert.ok(find(tree, "history-space-tree-children-two"));
 });

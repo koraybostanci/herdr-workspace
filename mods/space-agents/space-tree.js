@@ -91,10 +91,7 @@ export class SpaceTree {
     this.highlightedId = id; this.handle.focus(); cx.notify();
   }
   select(id, cx) {
-    if (!this.live(id)) return;
-    if (this.leaves?.has(id)) {
-      this.highlightedId = id; this.handle.focus(); this.onLeafSelect?.(id, cx); cx.notify(); return;
-    }
+    if (!this.live(id) || this.leaves?.has(id)) return;
     this.expand(id, cx); if (this.manageSpaces) run("space.select", { id });
   }
   create(machine, cx) {
@@ -122,8 +119,8 @@ export class SpaceTree {
     else return;
     cx.stop_propagation(); cx.notify();
   }
-  render(content, compact, t, { heading = true, tools = null, expanded = null, visible = null, hints = null, leaves = null, onLeafSelect = null } = {}) {
-    this.leaves = leaves; this.onLeafSelect = onLeafSelect;
+  render(content, compact, t, { heading = true, tools = null, expanded = null, visible = null, hints = null, leaves = null } = {}) {
+    this.leaves = leaves;
     if (leaves?.size) {
       const before = this.expandedIds.size;
       this.expandedIds = new Set([...this.expandedIds].filter(id => !leaves.has(id)));
@@ -154,15 +151,15 @@ export class SpaceTree {
           .bg(selected ? selectedFill : this.handle.is_focused() && this.highlightedId === s.id ? t.hover : t.chrome)
           .hover(el => el.bg(selected ? selectedFill : t.hover))
           .on_mouse_down("right", () => { if (this.manageSpaces) this.menu(s.id); })
-          .when(!compact && leaf, el => el.child(div().size(24).flex_none()))
-          .when(!compact && !leaf, el => el.child(Button.new(`${prefix}-toggle-${s.id}`).size(24).flex_none().rounded(4).cursor_pointer().disabled(!enabled)
+          .when(!compact, el => el.child(Button.new(`${prefix}-toggle-${s.id}`).size(24).flex_none().rounded(4).cursor_pointer().disabled(!enabled || Boolean(leaf))
             .text_color(enabled ? t.muted : t.dim).hover(el => el.text_color(t.foreground))
-            .accessibility_label(`${open ? "Collapse" : "Expand"} ${s.name}`).tooltip(`${open ? "Collapse" : "Expand"} ${s.name}`)
+            .accessibility_label(leaf ? `History in ${s.name}, no loaded sessions` : `${open ? "Collapse" : "Expand"} ${s.name}`)
+            .when(!leaf, el => el.tooltip(`${open ? "Collapse" : "Expand"} ${s.name}`))
             .on_click((_e, cx) => { cx.stop_propagation(); this.expand(s.id, cx, true); })
             .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12))))
           .child(Button.new(`${prefix}-name-${s.id}`).h(32).flex_1().min_w(0).px(compact ? 2 : 0).gap(7).items_center().justify_start().text_left()
             .rounded(4).cursor_pointer().disabled(!enabled).text_color(enabled ? t.foreground : t.dim)
-            .role("tree_item").aria_selected(selected).accessibility_label(description + (leaf ? ". No loaded History sessions; activate to check again." : "") + (hint ? `. ${hint}` : "")).tooltip(`${description}\n${s.folder ?? ""}${hint ? "\n" + hint : ""}`)
+            .role("tree_item").aria_selected(selected).accessibility_label(description + (leaf ? ". No loaded History sessions." : "") + (hint ? `. ${hint}` : "")).tooltip(`${description}\n${s.folder ?? ""}${hint ? "\n" + hint : ""}`)
             .on_click((_e, cx) => { if (this.suppressClick === s.id) { this.suppressClick = null; return; } this.select(s.id, cx); })
             .when(this.manageSpaces, el => el.on_mouse_down("left", () => { this.pressedId = s.id; this.suppressClick = null; })
             .on_mouse_up("left", (_e, cx) => {
