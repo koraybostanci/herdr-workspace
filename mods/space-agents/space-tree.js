@@ -80,7 +80,7 @@ export class SpaceTree {
   }
   save() { setShared(this.stateKey, this.multiple ? { expandedIds: [...this.expandedIds] } : { expandedId: this.expandedId }); }
   expand(id, cx, toggle = false) {
-    if (!this.live(id)) return;
+    if (!this.live(id) || this.leaves?.has(id)) return;
     const expanded = this.temporaryExpansion ?? (this.multiple ? this.expandedIds : new Set(this.expandedId ? [this.expandedId] : []));
     if (toggle && expanded.has(id)) expanded.delete(id); else expanded.add(id);
     if (!this.temporaryExpansion) {
@@ -92,6 +92,9 @@ export class SpaceTree {
   }
   select(id, cx) {
     if (!this.live(id)) return;
+    if (this.leaves?.has(id)) {
+      this.highlightedId = id; this.handle.focus(); this.onLeafSelect?.(id, cx); cx.notify(); return;
+    }
     this.expand(id, cx); if (this.manageSpaces) run("space.select", { id });
   }
   create(machine, cx) {
@@ -119,7 +122,14 @@ export class SpaceTree {
     else return;
     cx.stop_propagation(); cx.notify();
   }
-  render(content, compact, t, { heading = true, tools = null, expanded = null, visible = null, hints = null } = {}) {
+  render(content, compact, t, { heading = true, tools = null, expanded = null, visible = null, hints = null, leaves = null, onLeafSelect = null } = {}) {
+    this.leaves = leaves; this.onLeafSelect = onLeafSelect;
+    if (leaves?.size) {
+      const before = this.expandedIds.size;
+      this.expandedIds = new Set([...this.expandedIds].filter(id => !leaves.has(id)));
+      if (leaves.has(this.expandedId)) this.expandedId = [...this.expandedIds].at(-1) ?? null;
+      if (before !== this.expandedIds.size) this.save();
+    }
     const allSpaces = spaces(), groups = this.groups().map(group => ({ ...group, spaces: visible ? group.spaces.filter(s => visible.has(s.id)) : group.spaces }))
       .filter(group => !visible || group.spaces.length);
     this.temporaryExpansion = expanded;
@@ -133,7 +143,7 @@ export class SpaceTree {
       .accessibility_label(machine ? `New space on ${machine}` : "New space on this computer").tooltip(machine ? `New space on ${machine}` : "New space")
       .on_click((_e, cx) => this.create(machine, cx)).child(svg("mods/workspace-chrome/plus.svg").size(14));
     const branch = s => {
-      const open = (this.temporaryExpansion ?? this.expandedIds).has(s.id), enabled = this.ready(s.machine), selected = s.id === (this.manageSpaces ? this.activeId : this.expandedId);
+      const leaf = leaves?.has(s.id), open = !leaf && (this.temporaryExpansion ?? this.expandedIds).has(s.id), enabled = this.ready(s.machine), selected = s.id === (this.manageSpaces ? this.activeId : this.expandedId);
       const branchContent = content instanceof Map ? content.get(s.id) : content;
       const hint = hints?.get(s.id);
       const color = (shared("space.colors") ?? {})[s.id] ?? "ansi6", fill = color.startsWith("#") ? color : MARK[color] ?? t[color];
@@ -144,14 +154,15 @@ export class SpaceTree {
           .bg(selected ? selectedFill : this.handle.is_focused() && this.highlightedId === s.id ? t.hover : t.chrome)
           .hover(el => el.bg(selected ? selectedFill : t.hover))
           .on_mouse_down("right", () => { if (this.manageSpaces) this.menu(s.id); })
-          .when(!compact, el => el.child(Button.new(`${prefix}-toggle-${s.id}`).size(24).flex_none().rounded(4).cursor_pointer().disabled(!enabled)
+          .when(!compact && leaf, el => el.child(div().size(24).flex_none()))
+          .when(!compact && !leaf, el => el.child(Button.new(`${prefix}-toggle-${s.id}`).size(24).flex_none().rounded(4).cursor_pointer().disabled(!enabled)
             .text_color(enabled ? t.muted : t.dim).hover(el => el.text_color(t.foreground))
             .accessibility_label(`${open ? "Collapse" : "Expand"} ${s.name}`).tooltip(`${open ? "Collapse" : "Expand"} ${s.name}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.expand(s.id, cx, true); })
             .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12))))
           .child(Button.new(`${prefix}-name-${s.id}`).h(32).flex_1().min_w(0).px(compact ? 2 : 0).gap(7).items_center().justify_start().text_left()
             .rounded(4).cursor_pointer().disabled(!enabled).text_color(enabled ? t.foreground : t.dim)
-            .role("tree_item").aria_selected(selected).accessibility_label(description + (hint ? `. ${hint}` : "")).tooltip(`${description}\n${s.folder ?? ""}${hint ? "\n" + hint : ""}`)
+            .role("tree_item").aria_selected(selected).accessibility_label(description + (leaf ? ". No loaded History sessions; activate to check again." : "") + (hint ? `. ${hint}` : "")).tooltip(`${description}\n${s.folder ?? ""}${hint ? "\n" + hint : ""}`)
             .on_click((_e, cx) => { if (this.suppressClick === s.id) { this.suppressClick = null; return; } this.select(s.id, cx); })
             .when(this.manageSpaces, el => el.on_mouse_down("left", () => { this.pressedId = s.id; this.suppressClick = null; })
             .on_mouse_up("left", (_e, cx) => {

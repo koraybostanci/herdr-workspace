@@ -18,6 +18,7 @@ import { historyProgram, historyViewMode } from "./history-model.js";
 import { AgentPresence } from "./agent-presence.js";
 import { SpaceTree } from "./space-tree.js";
 import { renderSidebarAreas } from "./sidebar-layout.js";
+import { partitionSpaceSessions } from "./session-registry.js";
 
 const STATUS = { working: "Working", blocked: "Needs you", done: "Done", idle: "Idle" };
 
@@ -70,7 +71,7 @@ export default class SpaceAgents extends View {
         cx.timer.after(250, cx => {
           if (this.closed || version !== this.historyQueryVersion) return;
           this.historyQuery = query; this.searchExpandedIds = new Set(spaces().map(s => s.id)); this.searchKnownIds = new Set(this.searchExpandedIds);
-          for (const controller of this.controllers.values()) { controller.query = query; controller.selectedKey = null; controller.currentRequest = null; }
+          for (const controller of this.controllers.values()) { controller.query = query; controller.selectedKey = null; controller.currentRequest = null; controller.checkingEmpty = false; }
           cx.notify();
         });
       });
@@ -295,12 +296,18 @@ export default class SpaceAgents extends View {
         if (controller) { this.history = controller; agentsContent.set(space.id, this.renderSpace(cx, { space, controller, part: "agents" })); }
       }
       if (historyOpen) {
-        for (const space of searching ? allSpaces : allSpaces.filter(space => this.historyTree.expandedIds.has(space.id))) {
+        for (const space of searching ? allSpaces : allSpaces.filter(space => this.historyTree.expandedIds.has(space.id) || this.controllers.get(space.id)?.checkingEmpty)) {
           if (searching && !this.searchKnownIds.has(space.id)) { this.searchKnownIds.add(space.id); this.searchExpandedIds.add(space.id); }
           if (!this.historyTree.ready(space.machine)) { historyGroups.add(space.id); continue; }
           const controller = this.controllerFor(space, cx);
           if (!controller) { historyGroups.add(space.id); continue; }
           const content = this.renderSpace(cx, { space, controller, part: "history" });
+          if (controller.checkingEmpty && !controller.loading) {
+            controller.checkingEmpty = false;
+            if (controller.error) {
+              this.historyTree.expandedIds.add(space.id); this.historyTree.expandedId = space.id; this.historyTree.save();
+            }
+          }
           if (controller.page && !controller.page.complete) historyHints.set(space.id, "Some history sources are unavailable. Showing known sessions.");
           const visible = !searching || controller.historyMatchCount || controller.loading || controller.error || !controller.page || !controller.page.complete;
           if (visible) {
@@ -317,8 +324,25 @@ export default class SpaceAgents extends View {
       .child(div().text_size(12).text_color(t.muted).tooltip("Agents in expanded Spaces").child(String(this.agentCount)))
       .child(this.viewOptions(t, agentViewMode(shared("space-agents.view"))));
     this.historyOptions.mode = historyViewMode(shared("space-agents.history.view"));
+    const emptyHistorySpaces = new Set();
+    if (!searching) for (const [id, controller] of this.controllers) {
+      const space = allSpaces.find(space => space.id === id);
+      if (controller.page && !controller.error && !controller.retrying
+        && !controller.query && controller.page.request.query === "" && !controller.page.hasMore
+        && controller.space?.folder === space?.folder && (controller.space?.machine ?? null) === (space?.machine ?? null)
+        && !partitionSpaceSessions({ registry: controller.registry, space: controller.space }).history.length) {
+        emptyHistorySpaces.add(id);
+        if (!controller.page.complete) historyHints.set(id, "Some history sources are unavailable. Showing known sessions.");
+      }
+    }
     const savedTree = this.historyTree.render(historyContent, false, t, { heading: false,
-      expanded: searching ? this.searchExpandedIds : null, visible: searching ? historyGroups : null, hints: historyHints });
+      expanded: searching ? this.searchExpandedIds : null, visible: searching ? historyGroups : null, hints: historyHints, leaves: emptyHistorySpaces,
+      onLeafSelect: (id, cx) => {
+        const space = this.historyTree.live(id), controller = this.controllers.get(id);
+        if (this.closed || shared("space-agents.history.open") !== true || this.historyQuery.trim() || !space || !controller
+          || controller.space?.folder !== space.folder || (controller.space?.machine ?? null) !== (space.machine ?? null)) return;
+        controller.checkingEmpty = true; controller.refresh(cx);
+      } });
     const savedContent = searching && !historyGroups.size
       ? v_flex().p(14).child(div().text_size(12).text_color(t.muted).child("No matching sessions across Spaces.")) : savedTree;
     return renderSidebarAreas({ theme: t, compact, height: this.sidebarHeight ?? 600, historyOpen,

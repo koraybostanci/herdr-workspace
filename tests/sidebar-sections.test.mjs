@@ -77,7 +77,8 @@ test("per-Space History has no loading or empty paragraphs that move following S
     }
     const branch = find(render(view), "history-space-tree-children-one");
     assert.deepEqual(text(branch), [], `${phase}: empty branches should stay quiet`);
-    assert.ok(find(branch, "session-history-list"), "retain the list and its keyboard/accessibility boundary");
+    if (phase === "loading") assert.ok(find(branch, "session-history-list"), "retain the initial loading list boundary");
+    else assert.equal(branch, undefined, "a checked empty Space has no expanded area");
   }
 });
 
@@ -106,6 +107,119 @@ test("quiet History branches retain real errors, Retry and known sessions", () =
   assert.equal(controller.loading, true);
   assert.equal(controller.error, null);
   assert.equal(state.tasks.length, queued + 1);
+});
+
+function emptyHistory(view) {
+  click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-name-one"); render(view);
+  seed(view, "one", []); view.controllers.get("one").loading = false;
+  return render(view);
+}
+
+test("empty History Spaces become aligned collapsed leaf rows without changing Agents", () => {
+  const view = fixture(), tree = emptyHistory(view);
+  assert.ok(find(tree, "history-space-tree-name-one"));
+  assert.equal(find(tree, "history-space-tree-toggle-one"), undefined);
+  assert.equal(find(tree, "history-space-tree-children-one"), undefined);
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  assert.equal(state.shared["space-agents.history.tree"].expandedIds.includes("one"), false);
+  assert.equal(find(tree, "history-space-tree-row-one").nodes[0].attributes.size[0], 24, "reserve the chevron column so names stay aligned");
+  assert.ok(find(tree, "space-tree-toggle-one"));
+  assert.ok(find(tree, "space-tree-children-one"));
+});
+
+test("an empty History name rechecks without expanding and restores expansion when sessions arrive", async () => {
+  const view = fixture(); emptyHistory(view); state.tasks = []; ownedRuntime();
+  state.execute = async (_command, args) => {
+    assert.equal(args[1], "history-view");
+    const request = JSON.parse(args[args.indexOf("--request") + 1]);
+    return { code: 0, stdout: JSON.stringify(createHistoryView(historyRegistry([historyEntry("new", { title: "New saved session" })]), request)) };
+  };
+  try {
+    click(render(view), "history-space-tree-name-one");
+    assert.equal(view.historyTree.expandedIds.has("one"), false);
+    assert.equal(view.controllers.get("one").loading, true);
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    const updated = render(view);
+    assert.ok(find(updated, "history-space-tree-toggle-one"));
+    assert.equal(find(updated, "history-space-tree-children-one"), undefined, "successful discovery must not steal expansion");
+    click(updated, "history-space-tree-toggle-one");
+    assert.ok(text(find(render(view), "history-space-tree-children-one")).includes("New saved session"));
+    assert.deepEqual(state.commands, []);
+  } finally { state.execute = null; }
+});
+
+test("a failed empty-Space recheck exposes a usable Retry area", async () => {
+  const view = fixture(); emptyHistory(view); state.tasks = []; ownedRuntime();
+  state.execute = async () => ({ code: 1, stdout: "", stderr: "unavailable" });
+  try {
+    click(render(view), "history-space-tree-name-one");
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    const tree = render(view), branch = find(tree, "history-space-tree-children-one");
+    assert.ok(branch);
+    assert.ok(find(tree, "history-space-tree-toggle-one"));
+    assert.ok(find(branch, "session-history-retry"));
+    assert.ok(text(branch).some(value => value.startsWith("History unavailable.")));
+    const queued = state.tasks.length;
+    click(branch, "session-history-retry");
+    assert.equal(state.tasks.length, queued + 1);
+    assert.ok(find(render(view), "history-space-tree-children-one"), "Retry must not collapse the error branch while checking");
+    await Promise.all(state.tasks.splice(0).map(task => task()));
+    assert.ok(find(find(render(view), "history-space-tree-children-one"), "session-history-retry"), "another failure must still expose Retry");
+  } finally { state.execute = null; }
+});
+
+test("empty-Space keyboard input cannot expand a leaf and Enter rechecks it", () => {
+  const view = fixture(), tree = emptyHistory(view), list = find(tree, "history-space-tree-list");
+  list.attributes.track_focus[0].focus(); view.historyTree.highlightedId = "one"; state.tasks = [];
+  list.attributes.on_key_down[0]({ keystroke: "right" }, context());
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  assert.equal(state.tasks.length, 0);
+  list.attributes.on_key_down[0]({ keystroke: "enter" }, context());
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  assert.equal(view.controllers.get("one").loading, true);
+  assert.equal(state.tasks.length, 1);
+});
+
+test("removing the last History session collapses only that Space", () => {
+  const view = fixture(); click(render(view), "history-area-toggle");
+  click(render(view), "history-space-tree-name-one"); render(view); seed(view, "one", [historyEntry("last")]);
+  click(render(view), "history-space-tree-name-two"); render(view); seed(view, "two", [historyEntry("other", { directory: "/other" })]);
+  view.controllers.get("one").loading = false; view.controllers.get("two").loading = false;
+  view.controllers.get("one").forgetSession('["local","local","opencode-v2","last"]');
+  const tree = render(view);
+  assert.equal(find(tree, "history-space-tree-toggle-one"), undefined);
+  assert.equal(find(tree, "history-space-tree-children-one"), undefined);
+  assert.ok(find(tree, "history-space-tree-children-two"));
+});
+
+test("a Space folder change loads its new context instead of turning the old page into an empty leaf", () => {
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-name-one"); render(view);
+  seed(view, "one", [historyEntry("old-folder", { title: "Old folder session" })]);
+  const controller = view.controllers.get("one"), oldRequest = controller.currentRequest;
+  const oldPage = createHistoryView(historyRegistry([historyEntry("old-folder")]), oldRequest);
+  controller.loading = false;
+  state.data.allSpaces[0].folder = "/new-folder";
+  const tree = render(view);
+  assert.ok(find(tree, "history-space-tree-toggle-one"), "an unchecked new folder is not a known-empty Space");
+  assert.ok(find(tree, "history-space-tree-children-one"));
+  assert.equal(controller.currentRequest.space.folder, "/new-folder");
+  assert.equal(controller.loading, true);
+  assert.equal(controller.acceptPage(oldPage, oldRequest), false, "a delayed previous-folder result must not classify the new folder");
+  assert.equal(text(tree).includes("Old folder session"), false);
+});
+
+test("a stale empty-Space name cannot recheck while History is hidden or its machine is unavailable", () => {
+  const view = fixture(), tree = emptyHistory(view), name = find(tree, "history-space-tree-name-one"); state.tasks = [];
+  click(tree, "history-area-toggle");
+  name.attributes.on_click[0]({}, context());
+  assert.equal(state.tasks.length, 0);
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  state.shared["space-agents.history.open"] = true;
+  state.data.allSpaces[0].machine = "offline";
+  name.attributes.on_click[0]({}, context());
+  assert.equal(state.tasks.length, 0);
+  assert.equal(view.historyTree.expandedIds.has("one"), false);
+  assert.deepEqual(state.commands, []);
 });
 
 test("closing History restores working space without collapsing the Agents branch", () => {

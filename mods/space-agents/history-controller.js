@@ -20,7 +20,7 @@ export class HistoryController {
   }
   setSpace(space) {
     if (this.closed) return;
-    const contextKey = space && JSON.stringify([space.id, space.machine, space.coreSession]);
+    const contextKey = space && JSON.stringify([space.id, space.machine, space.coreSession, space.folder]);
     if (contextKey !== this.contextKey) {
       if (this.contextKey) this.cache.set(this.contextKey, { registry: this.registry, page: this.page });
       const cached = this.cache.get(contextKey);
@@ -50,6 +50,7 @@ export class HistoryController {
     const sameView = this.page?.request.view === request.view && this.page.request.query === request.query && this.page.request.space.id === request.space.id;
     const target = !append && sameView ? Math.max(50, this.registry.sessions.filter(e => e.bindings.every(b => b.browsing)).length) : 50;
     if (this.loading && !append && this.currentRequest?.space.id === request.space.id && this.currentRequest.view === request.view && this.currentRequest.query === request.query) return;
+    this.retrying = Boolean(this.error);
     this.currentRequest = request; this.loading = true; this.error = null;
     cx.spawn(async cx => {
       if (this.closed) return;
@@ -70,7 +71,7 @@ export class HistoryController {
         if (!this.acceptPage(result, request, append) && this.currentRequest?.requestId === request.requestId && this.query === request.query) this.error = "History returned invalid data. Retry after updating the metadata helper.";
       }
       catch { if (this.currentRequest?.requestId === request.requestId) this.error = "History unavailable. Check the metadata helper, then retry."; }
-      finally { if (this.currentRequest?.requestId === request.requestId) { this.loading = false; cx.notify(); } }
+      finally { if (this.currentRequest?.requestId === request.requestId) { this.loading = false; this.retrying = false; cx.notify(); } }
     });
   }
   acceptPage(response, request, append = false) {
