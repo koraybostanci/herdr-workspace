@@ -1,5 +1,6 @@
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { lstat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { validWorkScope } from './contracts.mjs';
 
 const path=value=>typeof value==='string'&&isAbsolute(value)&&!/[\x00-\x1f\x7f]/.test(value);
@@ -39,10 +40,15 @@ async function governedDirectory(file,host) {
   }
   return packageRoot;
 }
-export async function selectWorkScope(observation,previous,canonicalDirectory) {
+export async function selectWorkScope(observation,previous,canonicalDirectory,homeDirectory=homedir()) {
   const host=observation.session.host,input=observation.payload??{};
   let scope=validWorkScope(previous)&&previous.host===host?previous:null;
-  if(scope?.source==='successful-file-work'&&await governedDirectory(resolve(scope.path,'__scope__'),host)!==scope.path)scope=null;
+  // Editing global agent instructions must not replace this session's project.
+  const instructions=resolve(homeDirectory,'.agents');
+  const inside=value=>path(value)&&(resolve(value)===instructions||resolve(value).startsWith(instructions+sep));
+  const instructionTask=inside(canonicalDirectory)||scope?.source!=='successful-file-work'&&inside(scope?.path);
+  const auxiliary=value=>host==='local'&&!instructionTask&&inside(value);
+  if(scope?.source==='successful-file-work'&&(auxiliary(scope.path)||await governedDirectory(resolve(scope.path,'__scope__'),host)!==scope.path))scope=null;
   let candidates=[];
   if(observation.kind==='location'&&path(input.cwd))candidates=[{operation:{kind:'directory',paths:[input.cwd],source:'session-location'},eventId:observation.eventId,eventAt:observation.observedAt}];
   else if(observation.kind==='tool')candidates=[{operation:operationScope(input),eventId:observation.eventId,eventAt:observation.observedAt}];
@@ -50,9 +56,10 @@ export async function selectWorkScope(observation,previous,canonicalDirectory) {
   for(const candidate of candidates.filter(Boolean).sort((a,b)=>b.eventAt-a.eventAt)) {
     const evidence=candidate.operation,{eventId,eventAt}=candidate;
     if(!evidence||scope&&eventAt<scope.eventAt||!['file','directory'].includes(evidence.kind)||!Array.isArray(evidence.paths)||!evidence.paths.length)continue;
-    const paths=evidence.paths.filter(path);
+    const paths=evidence.paths.filter(path).filter(file=>evidence.kind!=='file'||!auxiliary(file));
     const directories=await Promise.all(paths.map(file=>evidence.kind==='file'?governedDirectory(file,host):file));
     if(directories.length&&directories[0]&&directories.every(directory=>directory===directories[0])){
+      if(evidence.kind==='file'&&instructionTask&&inside(scope?.path)&&inside(directories[0]))break;
       scope={version:1,host,path:directories[0],source:evidence.source,eventId,eventAt};break;
     }
   }

@@ -6,6 +6,7 @@ import { historyGroups, historyViewMode, acceptHistoryPage } from "./history-mod
 const empty = () => ({ schema: 1, owner: "herdr-session-metadata", revision: 0, updatedAt: 0, sessions: [], sources: [] });
 export class HistoryController {
   init(cx) {
+    this.closed = false; this.operationVersions = new Map();
     this.registry = empty(); this.cache = new Map(); this.contexts = new Map(); this.pending = new Map(); this.requestSeq = 0; this.loading = false;
     this.query = ""; this.selectedKey = null; this.menuOpen = false; this.menuIndex = 0; this.confirmDeleteKey = null;
     this.listHandle = cx.focus_handle(); this.menuHandle = cx.focus_handle(); this.deleteHandle = cx.focus_handle();
@@ -18,6 +19,7 @@ export class HistoryController {
     });
   }
   setSpace(space) {
+    if (this.closed) return;
     const contextKey = space && JSON.stringify([space.id, space.machine, space.coreSession]);
     if (contextKey !== this.contextKey) {
       if (this.contextKey) this.cache.set(this.contextKey, { registry: this.registry, page: this.page });
@@ -29,18 +31,20 @@ export class HistoryController {
     if (space) this.contexts.set(JSON.stringify([space.id, space.machine ?? null]), space);
   }
   async call(command, request) {
+    if (this.closed) throw Error("controller-closed");
     const home = appHome(), raw = await readTextFile(`${home}/data/space-agents/runtime.json`);
     const runtime = JSON.parse(raw ?? "null"), prefix = `${home}/integrations/session-metadata/releases/`;
     const absolute = v => typeof v === "string" && /^(?:\/|[A-Za-z]:[\\/])/.test(v) && !/[\x00-\x1f\x7f]/.test(v);
     if (runtime?.owner !== "herdr-session-metadata" || runtime.schema !== 1 || !absolute(runtime.node) || !absolute(runtime.stateRoot)
       || typeof runtime.helperPath !== "string" || !runtime.helperPath.startsWith(prefix)
       || !/^[a-f0-9-]{36}\/bin\/herdr-session-meta\.mjs$/.test(runtime.helperPath.slice(prefix.length))) throw Error("metadata-unavailable");
+    if (this.closed) throw Error("controller-closed");
     const result = await exec(runtime.node, [runtime.helperPath, command, "--request", JSON.stringify(request), "--json", "--app-home", home, "--state-root", runtime.stateRoot]);
     if (result.code !== 0) throw Error("history-unavailable");
     return JSON.parse(result.stdout);
   }
   refresh(cx, append = false) {
-    if (!this.space) return;
+    if (this.closed || !this.space) return;
     const request = { space: this.space, view: historyViewMode(shared("space-agents.history.view")), query: this.query,
       offset: append ? this.page?.nextOffset ?? 0 : 0, limit: 50, requestId: String(++this.requestSeq) };
     const sameView = this.page?.request.view === request.view && this.page.request.query === request.query && this.page.request.space.id === request.space.id;
@@ -48,6 +52,7 @@ export class HistoryController {
     if (this.loading && !append && this.currentRequest?.space.id === request.space.id && this.currentRequest.view === request.view && this.currentRequest.query === request.query) return;
     this.currentRequest = request; this.loading = true; this.error = null;
     cx.spawn(async cx => {
+      if (this.closed) return;
       try {
         let result = await this.call("history-view", request);
         if (!append && target > 50 && acceptHistoryPage(result, request)) {
@@ -69,7 +74,7 @@ export class HistoryController {
     });
   }
   acceptPage(response, request, append = false) {
-    if (!acceptHistoryPage(response, request) || this.space?.id !== request.space.id
+    if (this.closed || !acceptHistoryPage(response, request) || this.space?.id !== request.space.id
       || this.currentRequest?.requestId !== request.requestId || request.query !== this.query
       || !this.browseSpaces && focused()?.space && focused().space !== request.space.id) return false;
     let registry;
@@ -102,12 +107,29 @@ export class HistoryController {
   chooseView(mode, cx) { setShared("space-agents.history.view", mode); this.menuOpen = false; this.refresh(cx); cx.notify(); }
   toggle(section, cx) { const folded = shared("space-agents.sections") ?? (this.browseSpaces ? { history: true } : {}); setShared("space-agents.sections", { ...folded, [section]: !folded[section] }); cx.notify(); }
   requestDelete(row, open, cx) {
+    if (this.closed) return;
     this.confirmDeleteKey = open && !row.bindings.length && !["opening", "deleting"].includes(this.pending.get(row.key)?.state) ? row.key : null;
     if (this.confirmDeleteKey) this.deleteHandle.focus();
     cx.notify();
   }
+  forgetSession(sessionKey) {
+    this.operationVersions.set(sessionKey, (this.operationVersions.get(sessionKey) ?? 0) + 1);
+    const forget = state => {
+      const included = state.registry.sessions.some(e => sessionIdentityKey(e.session) === sessionKey);
+      const registry = { ...state.registry, sessions: state.registry.sessions.filter(e => sessionIdentityKey(e.session) !== sessionKey) };
+      const page = state.page && { ...state.page, total: Math.max(0, state.page.total - Number(included)),
+        nextOffset: Math.max(0, state.page.nextOffset - Number(included)),
+        agents: state.page.agents.filter(e => sessionIdentityKey(e.session) !== sessionKey),
+        history: state.page.history.filter(e => sessionIdentityKey(e.session) !== sessionKey) };
+      return { registry, page };
+    };
+    Object.assign(this, forget(this));
+    for (const [key, cached] of this.cache) this.cache.set(key, forget(cached));
+    this.currentRequest = null; this.loading = false; this.pending.delete(sessionKey);
+    if (this.confirmDeleteKey === sessionKey) this.confirmDeleteKey = null;
+  }
   deleteSession(row, cx) {
-    if (this.confirmDeleteKey !== row.key || row.bindings.length || !this.space || ["opening", "deleting"].includes(this.pending.get(row.key)?.state)) return;
+    if (this.closed || this.confirmDeleteKey !== row.key || row.bindings.length || !this.space || ["opening", "deleting"].includes(this.pending.get(row.key)?.state)) return;
     const space = this.space;
     this.confirmDeleteKey = null; this.pending.set(row.key, { state: "deleting" }); cx.notify();
     cx.spawn(async cx => {
@@ -115,17 +137,7 @@ export class HistoryController {
         const result = await this.call("delete-session", { session: row.session, space, confirmed: true });
         if (result.error) throw Error(result.error);
         if (result.schema !== 1 || result.owner !== "herdr-session-metadata" || result.deleted !== true || result.sessionKey !== row.key) throw Error("invalid-deletion-result");
-        const forget = state => {
-          const included = state.registry.sessions.some(e => sessionIdentityKey(e.session) === row.key);
-          const registry = { ...state.registry, sessions: state.registry.sessions.filter(e => sessionIdentityKey(e.session) !== row.key) };
-          const page = state.page && { ...state.page, total: Math.max(0, state.page.total - Number(included)),
-            nextOffset: Math.max(0, state.page.nextOffset - Number(included)),
-            history: state.page.history.filter(e => sessionIdentityKey(e.session) !== row.key) };
-          return { registry, page };
-        };
-        Object.assign(this, forget(this));
-        for (const [key, cached] of this.cache) this.cache.set(key, forget(cached));
-        this.currentRequest = null; this.loading = false; this.pending.delete(row.key);
+        this.forgetSession(row.key); this.onDeleted?.(row.key);
         this.refresh(cx);
       } catch (error) {
         const messages = { "session-open": "Close this session in Herdr before deleting it.",
@@ -137,15 +149,17 @@ export class HistoryController {
       } finally { cx.notify(); }
     });
   }
-  resume(row, cx, expectedSpace = this.space?.id) {
-    if (["opening", "deleting"].includes(this.pending.get(row.key)?.state) || !this.space || this.space.id !== expectedSpace) return;
+  resume(row, cx, expectedSpace = this.space?.id, isCurrent = () => true) {
+    if (this.closed || ["opening", "deleting"].includes(this.pending.get(row.key)?.state) || !this.space || this.space.id !== expectedSpace || !isCurrent()) return;
     const space = this.space;
+    const operation = (this.operationVersions.get(row.key) ?? 0) + 1; this.operationVersions.set(row.key, operation);
     if (this.browseSpaces && focused()?.space !== space.id) run("space.select", { id: space.id });
     this.pending.set(row.key, { state: "opening" }); cx.notify();
     cx.spawn(async cx => {
       try {
         const result = await this.call("prepare-resume", { session: row.session, space, browsing: true });
-        if (this.space?.id !== space.id || focused()?.space && focused().space !== space.id) { this.pending.delete(row.key); return; }
+        if (this.closed || this.operationVersions.get(row.key) !== operation) return;
+        if (this.space?.id !== space.id || !isCurrent() || focused()?.space && focused().space !== space.id) { this.pending.delete(row.key); return; }
         if (result.sessionKey !== row.key || result.error) throw Error(result.error ?? "session-unavailable");
         if (result.kind === "focus" && typeof result.terminal === "string") { run("agent.focus", { terminal: result.terminal }); this.pending.delete(row.key); }
         else if (result.kind === "launch" && result.command === "tab.new" && result.args?.space === space.id && result.args.folder === row.directory
@@ -157,6 +171,7 @@ export class HistoryController {
         } else throw Error("session-unavailable");
         this.refresh(cx);
       } catch (error) {
+        if (this.closed || this.operationVersions.get(row.key) !== operation) return;
         const messages = { "session-missing": "Saved session no longer exists.", "directory-unavailable": "Original folder is unavailable.",
           "harness-unavailable": "Harness is not installed on the original machine.", "authority-unavailable": "Original server is unavailable.",
           "execution-host-unavailable": "Original machine is unavailable.", "connection-unavailable": "Connection unavailable. Reconnect before resuming." };
@@ -164,5 +179,10 @@ export class HistoryController {
       } finally { cx.notify(); }
     });
   }
-  close() { this.search.release(); this.listHandle.release(); this.menuHandle.release(); this.deleteHandle.release(); }
+  close() {
+    if (this.closed) return;
+    this.closed = true; this.currentRequest = null; this.space = null; this.queryVersion = (this.queryVersion ?? 0) + 1;
+    this.registry = empty(); this.page = null; this.cache.clear(); this.contexts.clear(); this.pending.clear(); this.operationVersions.clear();
+    this.search.release(); this.listHandle.release(); this.menuHandle.release(); this.deleteHandle.release(); this.agentHandle?.release();
+  }
 }

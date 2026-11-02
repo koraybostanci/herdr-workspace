@@ -68,7 +68,7 @@ async function apply(observation, binding, deps) {
     const reference = ticketReference(observation.payload?.prompt);
     if (reference.id || reference.ambiguous) next.taskTicket = reference;
   }
-  const workScope = await selectWorkScope(observation, old.workScope, current.lookupDir ?? binding.lookupDir);
+  const workScope = await selectWorkScope(observation, old.workScope, current.lookupDir ?? binding.lookupDir, deps.homeDirectory);
   next.workScope = workScope;
   const payload = { ...observation.payload, taskTicket: next.taskTicket, cwd: workScope?.path ?? null, workdir: workScope?.path ?? null };
   if (observation.kind === "tool" && !operationScope(observation.payload)) { delete payload.command; delete payload.output; delete payload.failed; }

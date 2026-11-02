@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { loadHerdrMod } from "./helpers/load-herdr-mod.mjs";
-import { state, context, render, text, find } from "./helpers/herdr-runtime.mjs";
+import { state, context, render, text, find, div } from "./helpers/herdr-runtime.mjs";
 import { historySpace, historyEntry, historyRegistry } from "./helpers/session-history-fixtures.mjs";
 import { createHistoryView } from "../integrations/session-metadata/src/history-view.mjs";
 import { metadataFixture } from "./helpers/session-metadata-fixtures.mjs";
@@ -25,10 +25,11 @@ function fixture(saved = {}) {
 const click = (tree, id) => { const node = find(tree, id); assert.ok(node, id); node.attributes.on_click[0]({}, context()); };
 const savedKey = '["local","local","opencode-v2","ses_second"]';
 function seedHistory(view) {
+  const controller = view.controllers.get("two");
   const space = { ...historySpace, id: "two", folder: "/other" };
   const request = { space, view: "recent", query: "", offset: 0, limit: 50, requestId: "second" };
-  view.history.currentRequest = request;
-  return view.history.acceptPage(createHistoryView(historyRegistry([historyEntry("ses_second", { directory: "/other", title: "Second saved" })]), request), request);
+  controller.currentRequest = request;
+  return controller.acceptPage(createHistoryView(historyRegistry([historyEntry("ses_second", { directory: "/other", title: "Second saved" })]), request), request);
 }
 
 test("the native host can initialize the mod without layout props", () => {
@@ -44,7 +45,7 @@ test("native layout props enable the Spaces tree even when init receives no tree
     const tree = render(view);
     assert.ok(find(tree, "space-tree-list"));
     assert.ok(find(tree, "space-tree-name-one")); assert.ok(find(tree, "space-tree-name-two"));
-    assert.ok(find(find(tree, "space-tree-children-one"), "agents-section-toggle"));
+    assert.ok(find(find(tree, "space-tree-children-one"), "space-agent-list-one"));
   }
 });
 
@@ -67,24 +68,102 @@ test("all Space names remain visible and only the expanded Space owns the indent
   assert.equal(find(tree, "session-history-search"), undefined, "History starts folded");
 });
 
+test("tree agent cards are dense two-line rows in both agent views", () => {
+  for (const mode of ["list", "repository"]) {
+    const view = fixture(); state.shared["space-agents.view"] = mode;
+    state.data.allPanes = [{ pane: "p1", tab: "tab1", cwd: "/repos/project/api", branch: "feature/change" }];
+    const tree = render(view), card = find(tree, "space-agent-a1");
+    const padding = card.attributes.py?.[0] ?? card.attributes.p?.[0] ?? 0;
+    const declaredHeight = card.nodes.reduce((sum, row) => sum + (row.attributes.h?.[0] ?? 0), 0)
+      + padding * 2 + (card.attributes.gap?.[0] ?? 0) + (card.attributes.border?.[0] ?? 0) * 2;
+    assert.ok(declaredHeight <= 44, `${mode}: ${declaredHeight}px is too tall`);
+    assert.ok(text(card).includes("api · feature/change"));
+  }
+});
+
+test("agent harness and text columns align with their Space icon and name", () => {
+  for (const mode of ["list", "repository"]) {
+    const view = fixture(); state.shared["space-agents.view"] = mode;
+    const tree = render(view), row = find(tree, "space-tree-row-one"), name = find(tree, "space-tree-name-one");
+    const markerLeft = row.attributes.px[0] + find(row, "space-tree-toggle-one").attributes.size[0] + row.attributes.gap[0] + name.attributes.px[0];
+    const markerWidth = name.nodes[0].attributes.size[0], spaceTextLeft = markerLeft + markerWidth + name.attributes.gap[0];
+    const list = find(tree, "space-agent-list-one"), card = find(tree, "space-agent-a1"), titleRow = card.nodes[0], metadataRow = card.nodes[1];
+    const icon = titleRow.nodes[0].nodes[0], iconWidth = icon.attributes.w?.[0] ?? icon.attributes.size[0];
+    const iconLeft = find(tree, "space-tree-children-one").attributes.pl[0] + list.attributes.pl[0] + card.attributes.px[0] + card.attributes.border[0];
+    assert.equal(iconLeft + iconWidth / 2, markerLeft + markerWidth / 2, mode);
+    assert.equal(iconLeft + iconWidth + titleRow.attributes.gap[0], spaceTextLeft, mode);
+    assert.equal(iconLeft + metadataRow.attributes.pl[0], spaceTextLeft, mode);
+  }
+});
+
+test("an active agent row is separated from its selected Space header", () => {
+  const view = fixture(); state.data.allAgents[0].focused = true;
+  const tree = render(view), children = find(tree, "space-tree-children-one"), list = find(tree, "space-agent-list-one");
+  const gap = (children.attributes.pt?.[0] ?? 0) + (list.attributes.pt?.[0] ?? 0);
+  assert.ok(gap >= 4 && gap <= 8, `expected a small header-to-row gap, got ${gap}px`);
+  assert.ok(find(children, "space-agent-a1"));
+});
+
+test("an unselected Space uses the same full-row cover for hover as selection", () => {
+  for (const prefix of ["space-tree", "history-space-tree"]) {
+    const view = fixture(); if (prefix === "history-space-tree") click(render(view), "history-area-toggle");
+    const row = find(render(view), `${prefix}-row-two`), hover = div();
+    assert.ok(row.attributes.hover, "the containing Space row owns its hover fill");
+    row.attributes.hover[0](hover);
+    assert.ok(hover.attributes.bg);
+    for (const id of [`${prefix}-name-two`, `${prefix}-toggle-two`]) {
+      const control = find(row, id), controlHover = div();
+      control.attributes.hover?.[0](controlHover);
+      assert.equal(controlHover.attributes.bg, undefined, `${id} must not paint a smaller hover box`);
+    }
+  }
+});
+
+test("selected Spaces use soft icon-matched tints with readable text in light and dark themes", () => {
+  const rgb = color => color.slice(1, 7).match(/../g).map(value => parseInt(value, 16));
+  const luminance = color => rgb(color).map(value => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; })
+    .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  const distance = (a, b) => Math.hypot(...rgb(a).map((value, index) => value - rgb(b)[index]));
+  for (const theme of [{ chrome: "#101114", foreground: "#f0f2f5", selected: "#282b30", hover: "#202327" },
+    { chrome: "#f6f7f9", foreground: "#20242a", selected: "#e0e3e8", hover: "#eceef1" }]) {
+    for (const color of ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1", "#3388dd"]) {
+      const view = fixture(); state.theme = theme; state.shared["space.colors"] = { one: color };
+      const tree = render(view), row = find(tree, "space-tree-row-one"), marker = find(tree, "space-tree-name-one").nodes[0].attributes.bg[0];
+      const tint = row.attributes.bg[0];
+      assert.notEqual(tint, theme.selected);
+      const amount = distance(tint, theme.chrome) / distance(marker, theme.chrome);
+      assert.ok(amount > 0.05 && amount < 0.3, `${color}: selection should remain a soft tint`);
+      const a = luminance(tint), b = luminance(theme.foreground);
+      assert.ok((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5, color);
+      const selectedHover = div(), unselectedHover = div();
+      row.attributes.hover[0](selectedHover); find(tree, "space-tree-row-two").attributes.hover[0](unselectedHover);
+      assert.deepEqual(selectedHover.attributes.bg, [tint]); assert.deepEqual(unselectedHover.attributes.bg, [theme.hover]);
+    }
+  }
+  state.theme = null;
+});
+
 test("the native local-machine entry never duplicates Space branches or their sections", () => {
   const view = fixture(); state.data.allMachines = [{ name: null, layout: "ready" }];
   const ids = node => [node?.attributes?.id?.[0], ...(node?.nodes ?? []).flatMap(ids)].filter(Boolean);
   const rendered = ids(render(view));
   assert.equal(rendered.filter(id => id === "space-tree-branch-one").length, 1);
   assert.equal(rendered.filter(id => id === "space-tree-branch-two").length, 1);
-  assert.equal(rendered.filter(id => id === "session-history").length, 1);
+  assert.equal(rendered.filter(id => id === "history-area").length, 1);
 });
 
-test("expanding another Space collapses the previous one without switching the workspace", () => {
+test("Agents Space branches toggle independently without switching the workspace", () => {
   const view = fixture(); click(render(view), "space-tree-toggle-two");
   const tree = render(view);
-  assert.equal(find(tree, "space-tree-children-one"), undefined);
+  assert.ok(find(tree, "space-tree-children-one"));
   assert.ok(find(tree, "space-tree-children-two")); assert.ok(find(tree, "space-agent-a2"));
-  assert.equal(find(tree, "space-agent-a1"), undefined);
+  assert.ok(find(tree, "space-agent-a1"));
   assert.deepEqual(state.commands, []); assert.equal(state.data.selectedSpace, "one");
   click(tree, "space-tree-toggle-two");
-  assert.equal(find(render(view), "space-agent-sections"), undefined);
+  assert.ok(find(render(view), "space-agent-a1"));
+  click(render(view), "space-tree-toggle-one");
+  assert.equal(find(render(view), "space-agent-a1"), undefined);
+  assert.equal(find(render(view), "space-agent-a2"), undefined);
   assert.deepEqual(state.order, []);
 });
 
@@ -141,19 +220,18 @@ test("a removed or disconnected Space refuses stale expansion, selection and con
   assert.deepEqual(state.commands, []);
 });
 
-test("History loads for a browsed inactive Space and late responses cannot populate a different branch", () => {
-  const view = fixture(); click(render(view), "space-tree-toggle-two"); render(view);
+test("History loads for an inactive Space and hidden branch responses cannot populate the visible branch", () => {
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-toggle-two"); render(view);
   assert.equal(seedHistory(view), true);
-  click(render(view), "session-history-toggle");
   assert.ok(find(render(view), `session-history-${savedKey}`));
-  click(render(view), "space-tree-toggle-one"); render(view);
-  assert.equal(seedHistory(view), false);
+  click(render(view), "history-space-tree-toggle-two"); click(render(view), "history-space-tree-toggle-one"); render(view);
+  assert.equal(seedHistory(view), true, "the hidden Space can retain its own response in cache");
   assert.equal(find(render(view), `session-history-${savedKey}`), undefined);
 });
 
 test("opening inactive-Space History selects its owner and resumes the exact saved conversation", async () => {
-  const view = fixture(); click(render(view), "space-tree-toggle-two"); render(view); seedHistory(view);
-  click(render(view), "session-history-toggle"); state.tasks = [];
+  const view = fixture(); click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-toggle-two"); render(view); seedHistory(view);
+  state.tasks = [];
   state.execute = async () => ({ code: 0, stdout: JSON.stringify({ kind: "launch", sessionKey: savedKey, command: "tab.new",
     args: { space: "two", folder: "/other", argv: ["opencode", "--session", "ses_second"] } }) });
   try {
@@ -238,19 +316,18 @@ test("a bound inactive-Space agent retains its owner even if a later render brow
 
 test("an old History row cannot open in a newly expanded Space, even when both share a directory", () => {
   const view = fixture(); state.data.allSpaces[0].folder = "/other";
-  click(render(view), "space-tree-toggle-two"); render(view); seedHistory(view);
-  click(render(view), "session-history-toggle"); const row = find(render(view), `session-history-${savedKey}`);
-  click(render(view), "space-tree-toggle-one"); render(view); state.tasks = [];
+  click(render(view), "history-area-toggle"); click(render(view), "history-space-tree-toggle-two"); render(view); seedHistory(view);
+  const row = find(render(view), `session-history-${savedKey}`);
+  click(render(view), "history-space-tree-toggle-two"); click(render(view), "history-space-tree-toggle-one"); render(view); state.tasks = [];
   row.attributes.on_click[0]({}, context());
   assert.deepEqual(state.commands, []); assert.equal(state.tasks.length, 0);
 });
 
-test("nested section folding and keyboard activation never select a Space", () => {
+test("History folding and unfocused tree keyboard activation never select a Space", () => {
   const view = fixture(); let tree = render(view);
-  click(tree, "agents-section-toggle");
-  assert.equal(find(render(view), "space-agent-a1"), undefined);
-  click(render(view), "session-history-toggle");
-  assert.ok(find(render(view), "session-history-search"));
+  click(tree, "history-area-toggle");
+  click(render(view), "history-space-tree-name-one");
+  assert.ok(find(render(view), "history-search-all"));
   tree = render(view);
   state.focusedHandle = null;
   find(tree, "space-tree-list").attributes.on_key_down[0]({ keystroke: "down" }, context());

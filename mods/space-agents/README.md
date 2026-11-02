@@ -1,29 +1,56 @@
 # Space agents
 
-A native Herdr sidebar. The `herdr-workspace` layout enables its Spaces tree
-with `{ "tree": true }` and nests Agents and History beneath the expanded Space.
+A native Herdr sidebar. The `herdr-workspace` layout enables its Agents tree
+with `{ "tree": true }` and puts History in a separate area above Settings.
 It reuses shipped assets without requiring edits to shipped files. Layouts that
 omit the tree prop retain the selected-space Agents/History panel.
 
-## Spaces tree
+## Agents and History trees
 
 All Space names remain visible in one scrollable list, grouped by machine.
-Expanding a Space collapses the previous branch. The chevron only expands or
-collapses; clicking the name also switches your workspace. Agents and History
-are indented beneath their Space, and each section folds independently. History
-starts folded when no section preference exists.
+Several Agent Spaces can stay open. Each chevron only expands or collapses its
+own branch; clicking its Space name also switches your workspace.
+Flat agent rows sit directly beneath the Space, without a nested Agents
+heading. Its view options and count live beside the top Agents heading.
+
+History starts collapsed above the native Settings footer. Expanding it reveals
+its own Space tree. Drag the native divider above History to adjust its height;
+the height is remembered in `space-agents.history.height`. Collapsing History
+returns that space to Agents.
+History Space names and chevrons only browse: they do not switch the active
+workspace or change the Agents branch. The open preference is saved separately
+in `space-agents.history.open`; old nested History fold preferences do not open
+the new area by default. The History title is left aligned with Agents.
+
+One search field beneath History searches saved sessions across all Spaces.
+Results remain grouped by Space and matching groups open temporarily. Clearing
+the query restores normal History browsing. Several History Spaces can stay
+open independently. Its global view menu offers Recent, By folder and By harness;
+load-more controls remain inside their matching Space.
 
 Clicking an agent or saved conversation first selects its owning Space, then
-focuses or opens that exact session. Only the expanded branch loads history;
-late responses cannot populate a different branch. Expansion is remembered in
-`space-agents.tree`. Switching workspaces through another control reveals the
-new active Space. Collapsing a branch does not close any session.
+focuses or opens that exact session. The two areas share one controller and
+session partition per Space, so browsing sessions cannot duplicate activated
+agents. Open Agent Spaces and normal History browsing load their displayed
+contexts; a global History search queries every available Space. A collapsed
+History area does not load an additional Space. Late responses stay in their own Space cache, and
+hidden History rows cannot open or delete a session. Confirmed deletion also
+invalidates other Space controllers, their pending pages and in-flight resume
+operations. Removed Spaces dispose their retained controls and deferred work.
+
+Opened-Space sets are remembered in `space-agents.tree` and
+`space-agents.history.tree`. Old single-Space state migrates without losing its
+open branch. Switching workspaces through another control reveals
+the new active Agents Space without changing the History branch. Collapsing a
+branch does not close any session.
 
 With the Space list focused, Up/Down and Home/End move the highlight, Right
-expands, Left collapses, and Enter/Space selects. Right-click retains the native
-Space menu. Drag names to reorder within a machine. The plus controls create on
+expands, Left collapses, and Enter/Space selects (or browses, in History).
+Right-click in Agents retains the native Space menu. Drag names to reorder within
+a machine. The plus controls in Agents create on
 their labelled machine; unavailable machines cannot fall back to local creation.
-A narrow sidebar shows all Space avatars and an Expand sidebar control.
+A narrow sidebar shows all Agent Space avatars, an Expand sidebar control and a
+History control that expands the sidebar and opens History.
 
 ## Use
 
@@ -43,7 +70,10 @@ Cards show the canonical bound session title, otherwise the reported session
 title or harness name; the harness icon; the verified repo/subdirectory (or
 folder basename); agent status; and an optional
 GitHub PR number. Cards use two rows; status is an indicator with a tooltip,
-with explicit “Needs you” and “No status” cues when relevant. Click a card to
+with explicit “Needs you” and “No status” cues when relevant. In the Spaces tree,
+agents use dense two-line rows, center harness icons under Space dots, align
+titles and metadata with Space names, and show directory
+plus branch on the second line. The full working path stays in the tooltip. Click a card to
 focus its pane. With the list focused, use
 Up/Down to choose a card and Enter/Space to focus it. A narrow sidebar shows
 icons with tooltips instead of full cards.
@@ -70,10 +100,11 @@ that a remote agent stopped.
 
 The layers button beside the agent count opens **View options**:
 
-- **List (default)** keeps the existing card order and repository line.
+- **List (default)** keeps the existing card order and directory metadata.
 - **Group by repository** combines agents in clones and worktrees of the same
   logical repository. Headings use repository names, sorted alphabetically.
-  Cards show the branch on their second row; the tooltip retains the actual
+  Tree cards show the directory and branch on their second row; layouts without
+  the tree show only the branch. The tooltip retains the actual
   working/worktree path. Detached checkouts are identified explicitly.
 
 Grouped cards also show **C** (Checkout) or **W** (Worktree) before the branch, when
@@ -98,15 +129,23 @@ panes do not authorize local filesystem probes from their reported paths.
 
 ## History
 
-History sits below Agents in the same scrollable sidebar. Each section folds independently. Both use the expanded Space as their outer filter; there is no All workspaces option. Every visible session keeps its harness icon. Layouts without the tree use the selected Space and retain compact session rows in the narrow sidebar.
+History is a separate bottom area with its own scrollable Space tree. Its expanded Space is the outer filter; there is no All workspaces option. Every visible session keeps its harness icon. Layouts without the tree retain the selected-Space Agents/History panel and compact session rows in the narrow sidebar.
 
-- **Recent**: newest native update first, under Today, Yesterday and Older.
+- **Recent**: newest native update first. Tree History omits redundant date headings; legacy panels retain Today, Yesterday and Older.
 - **By folder**: separate full directory/machine groups, including separate worktrees.
 - **By harness**: Claude Code and OpenCode, newest first within each group.
 
-The History view is remembered independently of the Agents view. Search matches titles and paths inside this Space. Load more reveals another bounded page. Incomplete discovery shows a warning and a known-count indicator rather than claiming the list is complete.
+The History view is remembered independently of the Agents view. The single search matches titles and paths across Spaces; legacy non-tree layouts retain their selected-Space search. Load more reveals another bounded page in its Space. Incomplete discovery is noted in the Space tooltip instead of a repeated banner; actual request errors and Retry remain visible.
 
 History rows are a dense 28px single-line list: harness icon, title, compact age and a small trash control in the expanded sidebar. Folder/machine details and errors are in the tooltip. There are no Resume buttons or second metadata lines.
+
+Tree History uses the same icon-center and text columns as its Space headers.
+Agent rows have a small gap beneath the Space header, so the selected fills do
+not run into each other.
+
+Space hover covers the full row in both areas. Selection uses a soft tint of
+the Space dot's color on the native sidebar surface; unselected hover stays
+neutral. Light and dark surfaces use separate tint strengths.
 
 The trash control asks for confirmation before permanently deleting the saved conversation from its original harness, server and machine. Cancel has initial keyboard focus. OpenCode also deletes child sessions; Claude deletes the session's subagent transcripts. Close any Herdr bindings first, including sessions opened only for viewing. An unavailable connection or failed deletion keeps the row with an error in its tooltip. Only confirmed native deletion removes the local catalog entry, metadata and Space association; it does not return after refresh. Deletion does not remove project files or undo code changes.
 
@@ -167,9 +206,11 @@ History metadata is private local state. Native titles can contain private conte
 
 ## Native styling
 
-`main.js` uses `theme()` colors and inherits the UI font. Cards are about 58 px
-high with a 7 px radius, 8 px padding, and 6 px list gaps; text is 10.5–13 px.
-The two content rows are 18 px high, separated by 4 px. The cloned layout
+`main.js` uses `theme()` colors and inherits the UI font. Tree cards are about
+42 px high with a 3 px hover/selection radius, 4 px vertical padding, and 4 px list gaps. Resting rows blend into the sidebar without a visible border. Active and hovered rows use native fills; an outline is reserved for keyboard focus. Their
+16 px title row and 14 px metadata row are separated by 2 px; text is 10.5–12.5 px.
+Layouts without the tree retain 58 px cards, 8 px padding and 6 px list gaps.
+The cloned layout
 retains native pane frames with a 10 px radius and 8 px gaps. No separate theme,
 global design files, or design system is needed.
 

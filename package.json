@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Installable Herdr workspace: Spaces tree, agent cards, History and session tabs.",
+  "description": "Installable Herdr workspace: Agents tree, searchable History and session tabs.",
   "engines": {
     "node": ">=26"
   },
