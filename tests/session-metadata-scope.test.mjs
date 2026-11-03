@@ -179,6 +179,23 @@ test('project-local agent instructions are still project work',async t=>{
   assert.equal((await f.store.read(f.key)).workScope.path,f.directory);
 });
 
+test('a task command run in a plain OS scratch directory is not adopted as the task project',async t=>{
+  const f=await fixture(t);
+  const scratch=join(f.root,'fs-track.XYZ');await mkdir(scratch,{recursive:true});
+  await f.observe('scratch-command',{tool:'functions.shell',workdir:scratch,command:'gh pr edit 6159 --body-file body.md'});
+  const record=await f.store.read(f.key);
+  assert.notEqual(record.workScope?.path,scratch);
+  assert.equal(record.workScope?.path,f.directory);
+});
+
+test('refresh repairs a stored scratch-directory scope from an earlier task command',async t=>{
+  const f=await fixture(t);
+  const scratch=join(f.root,'fs-track.OLD');await mkdir(scratch,{recursive:true});
+  await f.store.write({...f.record,workScope:{version:1,host:'local',path:scratch,source:'successful-task-command',eventId:'old',eventAt:900}},null);
+  await f.observe('refresh-scratch',{},'title',3000);
+  assert.equal((await f.store.read(f.key)).workScope.path,f.directory);
+});
+
 test('a package.json in an OS scratch directory is not adopted as the task project',async t=>{
   const f=await fixture(t);
   const scratch=join(f.root,'fs-track.ABC');await mkdir(scratch,{recursive:true});await writeFile(join(scratch,'package.json'),'{}');

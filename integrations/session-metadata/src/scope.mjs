@@ -24,6 +24,8 @@ export function operationScope(input={}) {
   const work=/^(?:node\s+--test\b|python(?:3)?\s+-m\s+(?:pytest|unittest)\b|pytest\b|(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|build|lint|check)\b|(?:cargo|go)\s+(?:test|build)\b|make\s+(?:test|check|build)\b|git\s+(?:add|commit|switch|checkout|cherry-pick|merge)\b|gh\s+pr\s+(?:create|edit|checkout)\b)/.test(command);
   return work?{kind:'directory',paths:[cwd],source:'successful-task-command'}:null;
 }
+const scratchRoots=['/tmp','/private/tmp','/var/folders','/private/var/folders'];
+const scratchRoot=(value,host)=>host==='local'&&scratchRoots.some(root=>resolve(value).startsWith(root+sep));
 async function governedDirectory(file,host) {
   const parent=dirname(file);
   if(host!=='local')return parent; // Never interpret a peer path on this machine.
@@ -39,7 +41,7 @@ async function governedDirectory(file,host) {
     const next=dirname(directory);if(next===directory)break;directory=next;
   }
   // A package.json inside the OS temp directory marks scratch work, not the task's project.
-  const scratch=packageRoot&&['/tmp','/private/tmp','/var/folders','/private/var/folders'].some(root=>packageRoot.startsWith(root+sep));
+  const scratch=packageRoot&&scratchRoot(packageRoot,host);
   return scratch?null:packageRoot;
 }
 export async function selectWorkScope(observation,previous,canonicalDirectory,homeDirectory=homedir()) {
@@ -51,6 +53,7 @@ export async function selectWorkScope(observation,previous,canonicalDirectory,ho
   const instructionTask=inside(canonicalDirectory)||scope?.source!=='successful-file-work'&&inside(scope?.path);
   const auxiliary=value=>host==='local'&&!instructionTask&&inside(value);
   if(scope?.source==='successful-file-work'&&(auxiliary(scope.path)||await governedDirectory(resolve(scope.path,'__scope__'),host)!==scope.path))scope=null;
+  if(scope?.source==='successful-task-command'&&scratchRoot(scope.path,host)&&await governedDirectory(resolve(scope.path,'__scope__'),host)!==scope.path)scope=null;
   let candidates=[];
   if(observation.kind==='location'&&path(input.cwd))candidates=[{operation:{kind:'directory',paths:[input.cwd],source:'session-location'},eventId:observation.eventId,eventAt:observation.observedAt}];
   else if(observation.kind==='tool')candidates=[{operation:operationScope(input),eventId:observation.eventId,eventAt:observation.observedAt}];
@@ -59,7 +62,7 @@ export async function selectWorkScope(observation,previous,canonicalDirectory,ho
     const evidence=candidate.operation,{eventId,eventAt}=candidate;
     if(!evidence||scope&&eventAt<scope.eventAt||!['file','directory'].includes(evidence.kind)||!Array.isArray(evidence.paths)||!evidence.paths.length)continue;
     const paths=evidence.paths.filter(path).filter(file=>evidence.kind!=='file'||!auxiliary(file));
-    const directories=await Promise.all(paths.map(file=>evidence.kind==='file'?governedDirectory(file,host):file));
+    const directories=await Promise.all(paths.map(file=>evidence.kind==='file'?governedDirectory(file,host):evidence.source==='successful-task-command'&&scratchRoot(file,host)?governedDirectory(resolve(file,'__scope__'),host):file));
     if(directories.length&&directories[0]&&directories.every(directory=>directory===directories[0])){
       if(evidence.kind==='file'&&instructionTask&&inside(scope?.path)&&inside(directories[0]))break;
       scope={version:1,host,path:directories[0],source:evidence.source,eventId,eventAt};break;
