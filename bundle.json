@@ -190,7 +190,7 @@
     "integrations/session-metadata/package.json": "e1e470bdb0b4306d9db8034c0ef5fd4b7b53ba4f24171f53251094c079f7c467",
     "integrations/session-metadata/src/collector.mjs": "54cdd09b80f6f79610125fcf133434bd571ec5e77e2aacc997bbaa4bc8412d0c",
     "integrations/session-metadata/src/contracts.mjs": "3024011731d7f15d8981c7e21df128603d054231133a77d2247eaf1dd2ceadc9",
-    "integrations/session-metadata/src/engine.mjs": "36dcff839eb8aa80f7c6ed111d7e7c02491f70586f31819317cc6452892a7cde",
+    "integrations/session-metadata/src/engine.mjs": "de52c4ed6d5e7e6a1701dd2eb27ffc3cc6cfd7007e00b0abf187bd2542ff977b",
     "integrations/session-metadata/src/github.mjs": "52a5b54a5fb0db4dbc19611ff4ffab29f86b2234d9cee4f065e64cf84c94f766",
     "integrations/session-metadata/src/history-catalog.mjs": "71a1ab4b82b3c0bb0071ca0898b6e2b3f20e88705e45b6c6289b9d8fd4876fe6",
     "integrations/session-metadata/src/history-model.mjs": "38a498734c3cbee708abf98b77b64579a5e48d38ef52dc0d2bc29bbe56c5a395",

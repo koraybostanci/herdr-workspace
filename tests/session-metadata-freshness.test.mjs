@@ -174,3 +174,28 @@ test("a branch switched by another session in a shared checkout never moves this
   assert.equal(result.context.branch, "proj-101-features");
   assert.equal(result.context.activePrUrl, f.previous.activePrUrl);
 });
+
+test("sessions sharing a checkout do not claim a PR that another live session created", async () => {
+  const mk = async (id, created) => {
+    const f = await isolatedFixture(); return { f, id, created };
+  };
+  const f = await isolatedFixture();
+  try {
+    const url = f.context.activePrUrl, name = repoKey(f.context.repo);
+    const creator = { ...f.key, id: "ses_creator" }, other = f.key;
+    const creatorBinding = { ...f.binding, session: creator, terminal: "t-creator", generation: "generation-creator" };
+    assert.equal(await f.store.bind(creatorBinding, null), true);
+    assert.equal(await f.store.bind(f.binding, null), true);
+    await f.store.write({ ...f.record, session: creator, canonicalTitle: "creator", contexts: { [name]: { ...f.context, lastCreatedPrUrl: url } },
+      bindings: [{ key: bindingKey(creatorBinding), generation: creatorBinding.generation }] }, null);
+    const deps = { store: f.store, access: f.access, run: async () => ({ code: 1, stdout: "", stderr: "" }), clock: () => 1000,
+      activationMode: async () => "observe", validateBinding: async () => true, hasAuthority: async () => true,
+      resolveContext: async () => ({ state: "resolved", context: { ...f.context, lastCreatedPrUrl: null } }) };
+    await f.store.write({ ...f.record, bindings: [{ key: bindingKey(f.binding), generation: f.binding.generation }] }, null);
+    await applyObservation(f.observation, f.binding, deps);
+    assert.equal((await f.store.read(other)).contexts[name].activePrUrl, null);
+    await applyObservation({ ...f.observation, eventId: "own-work", kind: "tool", observedAt: 2000,
+      payload: { tool: "bash", command: "git commit -m x", cwd: "/parent/repo-a" } }, f.binding, deps);
+    assert.equal((await f.store.read(other)).contexts[name].activePrUrl, url);
+  } finally { await f.cleanup(); }
+});

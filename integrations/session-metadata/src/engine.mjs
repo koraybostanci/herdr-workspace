@@ -45,6 +45,15 @@ export function applyObservation(observation, binding, deps) {
   work.then(cleanup, cleanup);
   return work;
 }
+// Sessions sharing a checkout all see the branch of whichever one switched it; only the creator or a session that did its own work there owns its PR.
+async function createdElsewhere(url, session, deps) {
+  for (const other of await deps.store.listBindings()) {
+    if (sessionKey(other.session) === sessionKey(session)) continue;
+    const record = await deps.store.read(other.session);
+    if (record && !record.ended && Object.values(record.contexts).some(c => c?.lastCreatedPrUrl === url)) return true;
+  }
+  return false;
+}
 async function apply(observation, binding, deps) {
   const ignored = { state: "ignored", record: null };
   if (!binding || observation.parentId || observation.generation !== binding.generation || sessionKey(observation.session) !== sessionKey(binding.session) || !await currentBinding(binding, deps)) return ignored;
@@ -80,6 +89,13 @@ async function apply(observation, binding, deps) {
   next.activeRepo = null;
   if (result.context && ["resolved", "ambiguous"].includes(result.state)) {
     const name = repoKey(result.context.repo);
+    const known = old.contexts[name];
+    const owned = payload.ownedWork === true || known?.ownedBranch === result.context.branch;
+    result.context = { ...result.context, ownedBranch: owned && result.context.branch ? result.context.branch : null };
+    const url = result.context.activePrUrl;
+    if (url && result.context.lastCreatedPrUrl !== url && !owned && await createdElsewhere(url, observation.session, deps)) {
+      result.context = { ...result.context, activePrUrl: null };
+    }
     next.contexts = { ...old.contexts, [name]: result.context }; next.activeRepo = name;
     if (result.state === "resolved" && result.context.prStatus !== "unavailable") proposal = proposeTitle({ currentTitle: current.title, lastManagedTitle: old.lastManagedTitle,
       manualOverride: next.manualOverride, description: next.description, context: result.context });
