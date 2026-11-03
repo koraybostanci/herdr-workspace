@@ -217,8 +217,10 @@ export default class SpaceAgents extends View {
     const lookup = this.prs.peek(card);
     const pr = cardPullRequest(card, lookup);
     const dense = Boolean(this.tree) && !compact;
-    const directory = dense ? [repositoryLabel(card, pr), card.branch || (card.detached ? "Detached HEAD" : null)].filter(Boolean).join(" · ")
-      : grouped ? card.branch || (card.detached ? "Detached HEAD" : repositoryLabel(card, pr)) : repositoryLabel(card, pr);
+    // Detached worktrees of one repository are otherwise indistinguishable, so name the worktree folder.
+    const detachedLabel = card.worktree ? `Detached HEAD · ${card.worktree}` : "Detached HEAD";
+    const directory = dense ? [repositoryLabel(card, pr), card.branch || (card.detached ? detachedLabel : null)].filter(Boolean).join(" · ")
+      : grouped ? card.branch || (card.detached ? detachedLabel : repositoryLabel(card, pr)) : repositoryLabel(card, pr);
     const checkout = grouped && ["checkout", "worktree"].includes(card.checkoutType) ? card.checkoutType === "worktree" ? "Worktree" : "Checkout" : null;
     const status = STATUS[card.status] ?? "Status unavailable";
     const description = `${card.title}, ${card.program?.name ?? "Agent"}, ${checkout ? `${checkout}, ` : ""}${directory}, ${status}${pr ? `, PR #${pr.number}${pr.source === "title" ? ", unverified from session title" : ", verified on GitHub"}` : ""}`;

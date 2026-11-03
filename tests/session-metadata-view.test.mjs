@@ -95,3 +95,11 @@ test("a /rename in Claude (which fires no hook) reaches the stored title on the 
   await reconcileClaudeTitles({ ...f, sdk });
   assert.equal((await f.store.read(key)).revision, 1);
 });
+
+test("a detached worktree card carries its worktree folder name", () => {
+  const f = fixture();
+  const context = { ...f.context, detached: true, branch: "", checkoutType: "worktree", gitRoot: "/trees/track-318-cbs-playbooks", cwd: "/trees/track-318-cbs-playbooks", activePrUrl: null };
+  const card = projectSessionCard({ directory: "x" }, { ...f.record, contexts: { [f.record.activeRepo]: context } });
+  assert.equal(card.worktree, "track-318-cbs-playbooks");
+  assert.equal(projectSessionCard({ directory: "x" }, { ...f.record, contexts: { [f.record.activeRepo]: { ...context, checkoutType: "checkout" } } }).worktree, null);
+});
