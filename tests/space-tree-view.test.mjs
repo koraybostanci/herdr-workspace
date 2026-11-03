@@ -359,3 +359,11 @@ test("History folding and unfocused tree keyboard activation never select a Spac
   find(tree, "space-tree-list").attributes.on_key_down[0]({ keystroke: "enter" }, context());
   assert.deepEqual(state.commands, []);
 });
+
+test("repository group headers have a raised background so they stand apart from the cards", () => {
+  const view = fixture(); state.shared["space-agents.view"] = "repository";
+  const walk = node => node?.attributes?.id?.[0]?.startsWith?.("space-agent-group-toggle-") ? node : (node?.nodes ?? []).map(walk).find(Boolean);
+  const header = walk(render(view));
+  assert.ok(header, "group header renders");
+  assert.ok(header.attributes.bg?.length, "group header has a background");
+});

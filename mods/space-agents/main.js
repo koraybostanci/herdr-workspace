@@ -483,7 +483,7 @@ export default class SpaceAgents extends View {
           return v_flex().id(`space-agent-group-${key}`).w_full().flex_none().gap(this.tree ? 4 : 6).role("group")
             .accessibility_label(`${group.name}, ${group.cards.length} agents`)
             .when(!compact, el => el.child(Button.new(`space-agent-group-toggle-${key}`).w_full().h(28).px(8).gap(6).rounded(4)
-              .items_center().text_size(11.5).text_color(t.muted).cursor_pointer().tab_stop(true)
+              .items_center().text_size(11.5).text_color(t.muted).bg(t.raised).cursor_pointer().tab_stop(true)
               .hover(el => el.bg(t.hover).text_color(t.foreground)).tooltip(group.tooltip)
               .accessibility_label(`${collapsed ? "Expand" : "Collapse"} ${group.name}`).on_click(toggle)
               .on_key_down((event, cx) => { if (event.keystroke === "enter" || event.keystroke === "space") cx.stop_propagation(); })
