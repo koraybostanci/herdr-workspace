@@ -219,8 +219,9 @@ export default class SpaceAgents extends View {
     const dense = Boolean(this.tree) && !compact;
     // A worktree is named by its branch, or by its folder when detached, so sibling worktrees stay distinguishable.
     const ref = card.branch || (card.detached ? card.worktree || "Detached HEAD" : null);
-    const repoPart = dense ? repositoryLabel(card, pr) : null;
-    const refPart = dense ? ref : grouped ? ref || repositoryLabel(card, pr) : repositoryLabel(card, pr);
+    // The repository group header already names the repository, so only the list view repeats it on the card.
+    const repoPart = dense && !grouped ? repositoryLabel(card, pr) : null;
+    const refPart = grouped ? ref || repositoryLabel(card, pr) : dense ? ref : repositoryLabel(card, pr);
     const directory = [repoPart, refPart].filter(Boolean).join(" · ");
     const checkout = grouped && ["checkout", "worktree"].includes(card.checkoutType) ? card.checkoutType === "worktree" ? "Worktree" : "Checkout" : null;
     const status = STATUS[card.status] ?? "Status unavailable";

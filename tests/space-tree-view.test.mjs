@@ -78,7 +78,8 @@ test("tree agent cards are dense two-line rows in both agent views", () => {
       + padding * 2 + (card.attributes.gap?.[0] ?? 0) + (card.attributes.border?.[0] ?? 0) * 2;
     assert.ok(declaredHeight <= 44, `${mode}: ${declaredHeight}px is too tall`);
     const label = text(card);
-    assert.ok(label.includes("api ·") && label.includes("feature/change") && !label.includes("Detached"));
+    assert.ok(label.includes("feature/change") && !label.includes("Detached"));
+    assert.equal(label.includes("api ·"), mode === "list", `${mode}: the repository name belongs on the card only in the list view`);
   }
 });
 
