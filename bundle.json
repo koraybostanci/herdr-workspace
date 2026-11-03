@@ -197,7 +197,7 @@
     "integrations/session-metadata/src/history-view.mjs": "a1ab64ce7b5575f07cff795db2fd755428a336879722dd04976683233afd92d1",
     "integrations/session-metadata/src/naming.mjs": "4d22b1b62fe435f40167ff664a9e799c71a52c074fd6bd0ce6a141f0e4c329e7",
     "integrations/session-metadata/src/pending.mjs": "703f7075219938ba6c225679f03a7f2d0fca5ba8807085037744c7052c111366",
-    "integrations/session-metadata/src/scope.mjs": "eab553fcf97c159b25dbcf5959be9089fc5b39e9476f8f731cf61d316dc971be",
+    "integrations/session-metadata/src/scope.mjs": "ec0937799d5c3786b144443fa3d0f3fbf2785eb534086e9523d6a3db84ae08cb",
     "integrations/session-metadata/src/session-presence.mjs": "f3fda9b96ec12756d2c7149d925ae90b3c0bd6828a4ab9aa8e207171f5a35c08",
     "integrations/session-metadata/src/session-registry.mjs": "e58adb1c7bb98096333c9b64ee8d4d2b611b48e7facd2ea1ef8daec64fe2ee61",
     "integrations/session-metadata/src/store.mjs": "025f1d9efb2c62b0bb3426e58de746e8764a8ee3db8cc5d473d7328509a218a0",
