@@ -77,7 +77,8 @@ test("tree agent cards are dense two-line rows in both agent views", () => {
     const declaredHeight = card.nodes.reduce((sum, row) => sum + (row.attributes.h?.[0] ?? 0), 0)
       + padding * 2 + (card.attributes.gap?.[0] ?? 0) + (card.attributes.border?.[0] ?? 0) * 2;
     assert.ok(declaredHeight <= 44, `${mode}: ${declaredHeight}px is too tall`);
-    assert.ok(text(card).includes("api · feature/change"));
+    const label = text(card);
+    assert.ok(label.includes("api ·") && label.includes("feature/change") && !label.includes("Detached"));
   }
 });
 

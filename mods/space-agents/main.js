@@ -217,10 +217,11 @@ export default class SpaceAgents extends View {
     const lookup = this.prs.peek(card);
     const pr = cardPullRequest(card, lookup);
     const dense = Boolean(this.tree) && !compact;
-    // Detached worktrees of one repository are otherwise indistinguishable, so name the worktree folder.
-    const detachedLabel = card.worktree ? `Detached HEAD · ${card.worktree}` : "Detached HEAD";
-    const directory = dense ? [repositoryLabel(card, pr), card.branch || (card.detached ? detachedLabel : null)].filter(Boolean).join(" · ")
-      : grouped ? card.branch || (card.detached ? detachedLabel : repositoryLabel(card, pr)) : repositoryLabel(card, pr);
+    // A worktree is named by its branch, or by its folder when detached, so sibling worktrees stay distinguishable.
+    const ref = card.branch || (card.detached ? card.worktree || "Detached HEAD" : null);
+    const repoPart = dense ? repositoryLabel(card, pr) : null;
+    const refPart = dense ? ref : grouped ? ref || repositoryLabel(card, pr) : repositoryLabel(card, pr);
+    const directory = [repoPart, refPart].filter(Boolean).join(" · ");
     const checkout = grouped && ["checkout", "worktree"].includes(card.checkoutType) ? card.checkoutType === "worktree" ? "Worktree" : "Checkout" : null;
     const status = STATUS[card.status] ?? "Status unavailable";
     const description = `${card.title}, ${card.program?.name ?? "Agent"}, ${checkout ? `${checkout}, ` : ""}${directory}, ${status}${pr ? `, PR #${pr.number}${pr.source === "title" ? ", unverified from session title" : ", verified on GitHub"}` : ""}`;
@@ -258,12 +259,13 @@ export default class SpaceAgents extends View {
           .when(card.status === "blocked", el => el.child(div().text_size(10.5).font_medium().text_color(t.blocked).child("Needs you")))
           .when(!card.status, el => el.child(div().text_size(10.5).text_color(t.muted).child("No status")))))
       .child(h_flex().h(dense ? 14 : 18).flex_none().pl(dense ? 18 : 24).min_w(0).items_center().gap(6).text_size(dense ? 11 : 11.5).text_color(t.muted)
+        .when(Boolean(repoPart && refPart), el => el.child(div().flex_none().child(`${repoPart} ·`)))
         .when(Boolean(checkout), el => el.child(h_flex().id(`space-agent-checkout-${card.address}`).flex_none().h(dense ? 14 : 16).px(4).rounded(3)
           .items_center().bg(t.raised).text_color(t.muted).text_size(9.5).font_medium()
           .accessibility_label(checkout)
           .tooltip(`${checkout} — ${checkout === "Worktree" ? "Linked working directory" : "Primary working directory of this clone"}${card.branch ? ` · ${card.branch}` : ""} · ${card.cwd ?? "Directory unavailable"}`)
           .child(checkout === "Worktree" ? "W" : "C")))
-        .child(div().flex_1().min_w(0).truncate().tooltip(card.metadataHint ?? `${card.cwd ?? "Directory unavailable"}${pr?.repo ? ` · ${pr.repo.owner}/${pr.repo.name}` : ""}`).child(directory))
+        .child(div().flex_1().min_w(0).truncate().tooltip(card.metadataHint ?? `${card.cwd ?? "Directory unavailable"}${pr?.repo ? ` · ${pr.repo.owner}/${pr.repo.name}` : ""}`).child(refPart ?? repoPart ?? ""))
         .when(Boolean(pr), el => el.child((pr?.url ? Button.new(`space-agent-pr-${card.address}`) : h_flex().id(`space-agent-pr-${card.address}`)).flex().flex_none().h(dense ? 14 : 18).px(5).rounded(4)
           .bg(t.raised).items_center().gap(4).text_size(10.5).font_medium().text_color(pr?.source === "title" ? t.muted : t.accent)
           .tooltip(prHint + (card.prStale ? " · GitHub unavailable; last verified association" : ""))
