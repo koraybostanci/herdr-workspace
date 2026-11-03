@@ -63,7 +63,8 @@ async function apply(observation, binding, deps) {
   const current = await deps.access.get(observation.session);
   if (current.parentId || sessionKey(current.key) !== sessionKey(observation.session)) return ignored;
   const next = { ...old, revision: old.revision + 1, canonicalTitle: current.title,
-    description: old.description ?? current.title,
+    // Until the helper has named the session, its description is whatever the user last called it, not the title it started with.
+    description: old.lastManagedTitle ? old.description ?? current.title : current.title,
     bindings: [...old.bindings.filter(b => b.key !== bindingKey(binding)), { key: bindingKey(binding), generation: binding.generation }],
     seenEvents: [...old.seenEvents, observation.eventId].slice(-256), lastObservedAt: observation.kind === "title" ? old.lastObservedAt : observation.observedAt };
   if (old.lastManagedTitle && old.lastManagedTitle !== current.title) next.manualOverride = true;

@@ -199,3 +199,23 @@ test("sessions sharing a checkout do not claim a PR that another live session cr
     assert.equal((await f.store.read(other)).contexts[name].activePrUrl, url);
   } finally { await f.cleanup(); }
 });
+
+test("a session renamed before the helper named it is not reverted to its original title", async () => {
+  const f = await isolatedFixture();
+  try {
+    assert.equal(await f.store.bind(f.binding, null), true);
+    const link = { key: bindingKey(f.binding), generation: f.binding.generation };
+    let title = "playbooks-main (fork #1)";
+    const access = { get: async () => ({ key: f.key, title, parentId: null, lookupDir: "/parent" }), rename: async () => {} };
+    const deps = { store: f.store, access, run: async () => ({ code: 1, stdout: "", stderr: "" }), clock: () => 1000,
+      activationMode: async () => "observe", validateBinding: async () => true, hasAuthority: async () => true,
+      resolveContext: async () => ({ state: "resolved", context: f.context }) };
+    await applyObservation({ ...f.observation, eventId: "e1" }, f.binding, deps);
+    title = "playbooks-usercentrics";
+    await applyObservation({ ...f.observation, eventId: "e2", observedAt: 2000 }, f.binding, deps);
+    const record = await f.store.read(f.key);
+    assert.equal(record.description, "playbooks-usercentrics");
+    assert.match(record.pendingRename.title, /playbooks-usercentrics$/);
+    assert.deepEqual(record.bindings, [link]);
+  } finally { await f.cleanup(); }
+});
