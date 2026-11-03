@@ -70,7 +70,8 @@ async function apply(observation, binding, deps) {
   }
   const workScope = await selectWorkScope(observation, old.workScope, current.lookupDir ?? binding.lookupDir, deps.homeDirectory);
   next.workScope = workScope;
-  const payload = { ...observation.payload, taskTicket: next.taskTicket, cwd: workScope?.path ?? null, workdir: workScope?.path ?? null };
+  const payload = { ...observation.payload, taskTicket: next.taskTicket, cwd: workScope?.path ?? null, workdir: workScope?.path ?? null,
+    ownedWork: observation.kind === "tool" && Boolean(operationScope(observation.payload)) };
   if (observation.kind === "tool" && !operationScope(observation.payload)) { delete payload.command; delete payload.output; delete payload.failed; }
   const resolver = deps.resolveContext ?? ((o, context) => resolveWorkContext(o, context, deps.run));
   const result = workScope ? await resolver({ ...observation, payload }, old.contexts[old.activeRepo] ?? null) : { state: "unavailable" };

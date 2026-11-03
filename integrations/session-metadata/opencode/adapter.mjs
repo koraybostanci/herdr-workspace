@@ -83,6 +83,9 @@ export function createOpenCodeAdapter(context, deps) {
           payload: { ...tool.state.input, output, tool: tool.name, failed: tool.state.content.some(c => c.type === "error") } });
       }
     }
+    // A fork copies its parent's messages with their original timestamps; that history is not this session's work.
+    const created = info.time?.created;
+    if (Number.isFinite(created)) observations.splice(0, observations.length, ...observations.filter(o => o.observedAt >= created));
     observations.sort((a, b) => a.observedAt - b.observedAt);
     for (const o of observations) {
       if (!stillCurrent(id)) return;

@@ -59,7 +59,7 @@ test("GitHub failures preserve a verified PR only while its repository and branc
   assert.equal(retained.context.activePrUrl, "https://github.com/team/repo-a/pull/6104");
   assert.equal(retained.context.prStatus, "unavailable");
   f.state.branch = "proj-101-other-work";
-  const changed = await resolveWorkContext(f.observation, f.previous, f.run);
+  const changed = await resolveWorkContext({ ...f.observation, payload: { ...f.observation.payload, ownedWork: true } }, f.previous, f.run);
   assert.equal(changed.state, "resolved");
   assert.equal(changed.context.branch, "proj-101-other-work");
   assert.equal(changed.context.activePrUrl, null);
@@ -164,4 +164,13 @@ test("closed PR history cannot reappear as a title badge after cache expiry and 
   const card = projectSessionCard({ directory: "parent" }, { canonicalTitle: "PROJ-101 #6104 Features",
     activeRepo: repoKey(refreshed.context.repo), contexts: { [repoKey(refreshed.context.repo)]: refreshed.context } });
   assert.equal(cardPullRequest(card, { state: "loading" }), null);
+});
+
+test("a branch switched by another session in a shared checkout never moves this session's PR", async () => {
+  const f = boundary();
+  f.state.branch = "proj-101-other-work";
+  const result = await resolveWorkContext(f.observation, f.previous, f.run);
+  assert.equal(result.state, "resolved");
+  assert.equal(result.context.branch, "proj-101-features");
+  assert.equal(result.context.activePrUrl, f.previous.activePrUrl);
 });

@@ -149,3 +149,20 @@ test("OpenCode browsing ignores historical messages and old work events but acti
     item: { type: "user", payload: { text: "Continue" }, delivery: "queue" } } });
   assert.equal((await f.store.listBindings())[0].browsing, false);
 });
+
+test("a fork ignores the parent's copied history and only reacts to its own messages", async t => {
+  const f = await fixture(t);
+  const seen = [];
+  f.sessions.get("ses_A").time = { created: 5000, updated: 5000 };
+  f.context.data.session.message.list = () => [
+    { type: "user", id: "inherited", time: { created: 1 }, text: "Implement PROJ-101 Features" },
+    { type: "user", id: "own", time: { created: 6000 }, text: "Review something else" }];
+  const adapterWithSpy = createOpenCodeAdapter(f.context, { engine: async (o, b, d) => { seen.push(o.eventId); return applyObservation(o, b, { ...d, resolveContext: async () => ({ state: "resolved", context: f.workContext }) }); },
+    store: f.store, identity: { enabled: true, verify: async session => ({ ...f.binding, session, generation: "g-fork" }),
+      commit: async b => f.store.bind(b, null), validate: async () => true, release: async () => {} },
+    clock: () => 7000, activationMode: async () => "observe", publish: async () => {} });
+  await adapterWithSpy.refresh();
+  await adapterWithSpy.dispose();
+  assert.equal(seen.includes("inherited"), false);
+  assert.equal(seen.includes("own"), true);
+});

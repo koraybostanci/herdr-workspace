@@ -54,6 +54,10 @@ export async function resolveWorkContext(observation, previous, run) {
     }
   }
   const sameRepo = previous?.host === host && previous?.repo && repo && repoKey(previous.repo) === repoKey(repo);
+  // Another session switching a shared checkout must not move this session's PR; only this session's own work adopts the new branch.
+  if (sameRepo && root && previous.gitRoot === root && previous.branch && branch && previous.branch !== branch && input.ownedWork !== true) {
+    return { state: "resolved", context: previous };
+  }
   const sameWork = sameRepo && previous.gitRoot === root && previous.branch === branch;
   const matchesRepo = pr => !repo || repoKey(pr.repo) === repoKey(repo) || pr.headRepo && repoKey(pr.headRepo) === repoKey(repo);
   const known = sameRepo ? Object.values(previous.prs ?? {}).filter(pr => pr.state === "OPEN" && pr.headRefName === branch && matchesRepo(pr)) : [];

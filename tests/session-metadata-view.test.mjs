@@ -4,7 +4,7 @@ import { readSessionView, projectSessionCard, readLiveSessionBindings } from "..
 import { bindingKey } from "../integrations/session-metadata/src/contracts.mjs";
 import { metadataFixture } from "./helpers/session-metadata-fixtures.mjs";
 import { isolatedFixture } from "./helpers/session-metadata-fixtures.mjs";
-import { refreshView } from "../integrations/session-metadata/src/collector.mjs";
+import { refreshView, reconcileClaudeTitles } from "../integrations/session-metadata/src/collector.mjs";
 
 function fixture() {
   const f = metadataFixture();
@@ -78,4 +78,20 @@ test("collector drops offline peers without retaining an old active badge", asyn
   } }, [{ id: "devbox", host: "devbox", transport: "ssh", target: "devbox" }]);
   assert.equal(view.entries.length, 0);
   assert.equal(view.errors.length, 1);
+});
+
+test("a /rename in Claude (which fires no hook) reaches the stored title on the next refresh", async t => {
+  const f = await isolatedFixture(); t.after(f.cleanup);
+  const key = { ...f.key, harness: "claude", authority: "claude", id: "11111111-1111-4111-8111-111111111111" };
+  const binding = { ...f.binding, session: key, lookupDir: "/parent" };
+  assert.equal(await f.store.bind(binding, null), true);
+  const record = { ...f.record, session: key, canonicalTitle: "first prompt text", bindings: [{ key: bindingKey(binding), generation: binding.generation }] };
+  assert.equal(await f.store.write(record, null), true);
+  const sdk = { getSessionInfo: async (id, options) => { assert.equal(options.dir, "/parent"); return { sessionId: id, customTitle: "here is a question", summary: "x" }; } };
+  await reconcileClaudeTitles({ ...f, sdk });
+  const updated = await f.store.read(key);
+  assert.equal(updated.canonicalTitle, "here is a question");
+  assert.equal(updated.revision, 1);
+  await reconcileClaudeTitles({ ...f, sdk });
+  assert.equal((await f.store.read(key)).revision, 1);
 });
