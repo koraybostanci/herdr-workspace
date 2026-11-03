@@ -59,7 +59,7 @@ test("GitHub failures preserve a verified PR only while its repository and branc
   assert.equal(retained.context.activePrUrl, "https://github.com/team/repo-a/pull/6104");
   assert.equal(retained.context.prStatus, "unavailable");
   f.state.branch = "proj-101-other-work";
-  const changed = await resolveWorkContext(f.observation, f.previous, f.run);
+  const changed = await resolveWorkContext({ ...f.observation, payload: { ...f.observation.payload, ownedWork: true } }, f.previous, f.run);
   assert.equal(changed.state, "resolved");
   assert.equal(changed.context.branch, "proj-101-other-work");
   assert.equal(changed.context.activePrUrl, null);
@@ -164,4 +164,58 @@ test("closed PR history cannot reappear as a title badge after cache expiry and 
   const card = projectSessionCard({ directory: "parent" }, { canonicalTitle: "PROJ-101 #6104 Features",
     activeRepo: repoKey(refreshed.context.repo), contexts: { [repoKey(refreshed.context.repo)]: refreshed.context } });
   assert.equal(cardPullRequest(card, { state: "loading" }), null);
+});
+
+test("a branch switched by another session in a shared checkout never moves this session's PR", async () => {
+  const f = boundary();
+  f.state.branch = "proj-101-other-work";
+  const result = await resolveWorkContext(f.observation, f.previous, f.run);
+  assert.equal(result.state, "resolved");
+  assert.equal(result.context.branch, "proj-101-features");
+  assert.equal(result.context.activePrUrl, f.previous.activePrUrl);
+});
+
+test("sessions sharing a checkout do not claim a PR that another live session created", async () => {
+  const mk = async (id, created) => {
+    const f = await isolatedFixture(); return { f, id, created };
+  };
+  const f = await isolatedFixture();
+  try {
+    const url = f.context.activePrUrl, name = repoKey(f.context.repo);
+    const creator = { ...f.key, id: "ses_creator" }, other = f.key;
+    const creatorBinding = { ...f.binding, session: creator, terminal: "t-creator", generation: "generation-creator" };
+    assert.equal(await f.store.bind(creatorBinding, null), true);
+    assert.equal(await f.store.bind(f.binding, null), true);
+    await f.store.write({ ...f.record, session: creator, canonicalTitle: "creator", contexts: { [name]: { ...f.context, lastCreatedPrUrl: url } },
+      bindings: [{ key: bindingKey(creatorBinding), generation: creatorBinding.generation }] }, null);
+    const deps = { store: f.store, access: f.access, run: async () => ({ code: 1, stdout: "", stderr: "" }), clock: () => 1000,
+      activationMode: async () => "observe", validateBinding: async () => true, hasAuthority: async () => true,
+      resolveContext: async () => ({ state: "resolved", context: { ...f.context, lastCreatedPrUrl: null } }) };
+    await f.store.write({ ...f.record, bindings: [{ key: bindingKey(f.binding), generation: f.binding.generation }] }, null);
+    await applyObservation(f.observation, f.binding, deps);
+    assert.equal((await f.store.read(other)).contexts[name].activePrUrl, null);
+    await applyObservation({ ...f.observation, eventId: "own-work", kind: "tool", observedAt: 2000,
+      payload: { tool: "bash", command: "git commit -m x", cwd: "/parent/repo-a" } }, f.binding, deps);
+    assert.equal((await f.store.read(other)).contexts[name].activePrUrl, url);
+  } finally { await f.cleanup(); }
+});
+
+test("a session renamed before the helper named it is not reverted to its original title", async () => {
+  const f = await isolatedFixture();
+  try {
+    assert.equal(await f.store.bind(f.binding, null), true);
+    const link = { key: bindingKey(f.binding), generation: f.binding.generation };
+    let title = "playbooks-main (fork #1)";
+    const access = { get: async () => ({ key: f.key, title, parentId: null, lookupDir: "/parent" }), rename: async () => {} };
+    const deps = { store: f.store, access, run: async () => ({ code: 1, stdout: "", stderr: "" }), clock: () => 1000,
+      activationMode: async () => "observe", validateBinding: async () => true, hasAuthority: async () => true,
+      resolveContext: async () => ({ state: "resolved", context: f.context }) };
+    await applyObservation({ ...f.observation, eventId: "e1" }, f.binding, deps);
+    title = "playbooks-usercentrics";
+    await applyObservation({ ...f.observation, eventId: "e2", observedAt: 2000 }, f.binding, deps);
+    const record = await f.store.read(f.key);
+    assert.equal(record.description, "playbooks-usercentrics");
+    assert.match(record.pendingRename.title, /playbooks-usercentrics$/);
+    assert.deepEqual(record.bindings, [link]);
+  } finally { await f.cleanup(); }
 });

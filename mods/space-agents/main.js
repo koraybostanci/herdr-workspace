@@ -217,8 +217,12 @@ export default class SpaceAgents extends View {
     const lookup = this.prs.peek(card);
     const pr = cardPullRequest(card, lookup);
     const dense = Boolean(this.tree) && !compact;
-    const directory = dense ? [repositoryLabel(card, pr), card.branch || (card.detached ? "Detached HEAD" : null)].filter(Boolean).join(" · ")
-      : grouped ? card.branch || (card.detached ? "Detached HEAD" : repositoryLabel(card, pr)) : repositoryLabel(card, pr);
+    // A worktree is named by its branch, or by its folder when detached, so sibling worktrees stay distinguishable.
+    const ref = card.branch || (card.detached ? card.worktree || "Detached HEAD" : null);
+    // The repository group header already names the repository, so only the list view repeats it on the card.
+    const repoPart = dense && !grouped ? repositoryLabel(card, pr) : null;
+    const refPart = grouped ? ref || repositoryLabel(card, pr) : dense ? ref : repositoryLabel(card, pr);
+    const directory = [repoPart, refPart].filter(Boolean).join(" · ");
     const checkout = grouped && ["checkout", "worktree"].includes(card.checkoutType) ? card.checkoutType === "worktree" ? "Worktree" : "Checkout" : null;
     const status = STATUS[card.status] ?? "Status unavailable";
     const description = `${card.title}, ${card.program?.name ?? "Agent"}, ${checkout ? `${checkout}, ` : ""}${directory}, ${status}${pr ? `, PR #${pr.number}${pr.source === "title" ? ", unverified from session title" : ", verified on GitHub"}` : ""}`;
@@ -256,12 +260,13 @@ export default class SpaceAgents extends View {
           .when(card.status === "blocked", el => el.child(div().text_size(10.5).font_medium().text_color(t.blocked).child("Needs you")))
           .when(!card.status, el => el.child(div().text_size(10.5).text_color(t.muted).child("No status")))))
       .child(h_flex().h(dense ? 14 : 18).flex_none().pl(dense ? 18 : 24).min_w(0).items_center().gap(6).text_size(dense ? 11 : 11.5).text_color(t.muted)
+        .when(Boolean(repoPart && refPart), el => el.child(div().flex_none().child(`${repoPart} ·`)))
         .when(Boolean(checkout), el => el.child(h_flex().id(`space-agent-checkout-${card.address}`).flex_none().h(dense ? 14 : 16).px(4).rounded(3)
           .items_center().bg(t.raised).text_color(t.muted).text_size(9.5).font_medium()
           .accessibility_label(checkout)
           .tooltip(`${checkout} — ${checkout === "Worktree" ? "Linked working directory" : "Primary working directory of this clone"}${card.branch ? ` · ${card.branch}` : ""} · ${card.cwd ?? "Directory unavailable"}`)
           .child(checkout === "Worktree" ? "W" : "C")))
-        .child(div().flex_1().min_w(0).truncate().tooltip(card.metadataHint ?? `${card.cwd ?? "Directory unavailable"}${pr?.repo ? ` · ${pr.repo.owner}/${pr.repo.name}` : ""}`).child(directory))
+        .child(div().flex_1().min_w(0).truncate().tooltip(card.metadataHint ?? `${card.cwd ?? "Directory unavailable"}${pr?.repo ? ` · ${pr.repo.owner}/${pr.repo.name}` : ""}`).child(refPart ?? repoPart ?? ""))
         .when(Boolean(pr), el => el.child((pr?.url ? Button.new(`space-agent-pr-${card.address}`) : h_flex().id(`space-agent-pr-${card.address}`)).flex().flex_none().h(dense ? 14 : 18).px(5).rounded(4)
           .bg(t.raised).items_center().gap(4).text_size(10.5).font_medium().text_color(pr?.source === "title" ? t.muted : t.accent)
           .tooltip(prHint + (card.prStale ? " · GitHub unavailable; last verified association" : ""))
@@ -468,7 +473,7 @@ export default class SpaceAgents extends View {
             cx.notify();
           }
         })
-        .children(folded.agents ? [] : grouped ? groups.map(group => {
+        .children(folded.agents ? [] : grouped ? groups.map((group, index) => {
           const collapsed = groupCollapsed(group), key = groupStateKey(group);
           const toggle = (_event, cx) => {
             const saved = shared("space-agents.groups") ?? {};
@@ -476,15 +481,16 @@ export default class SpaceAgents extends View {
             cx.stop_propagation(); cx.notify();
           };
           return v_flex().id(`space-agent-group-${key}`).w_full().flex_none().gap(this.tree ? 4 : 6).role("group")
+            .when(index > 0 && !compact, el => el.border_t(1).border_color(t.border).pt(6).mt(4))
             .accessibility_label(`${group.name}, ${group.cards.length} agents`)
             .when(!compact, el => el.child(Button.new(`space-agent-group-toggle-${key}`).w_full().h(28).px(8).gap(6).rounded(4)
-              .items_center().text_size(11.5).text_color(t.muted).cursor_pointer().tab_stop(true)
+              .items_center().text_size(11.5).text_color(t.foreground).cursor_pointer().tab_stop(true)
               .hover(el => el.bg(t.hover).text_color(t.foreground)).tooltip(group.tooltip)
               .accessibility_label(`${collapsed ? "Expand" : "Collapse"} ${group.name}`).on_click(toggle)
               .on_key_down((event, cx) => { if (event.keystroke === "enter" || event.keystroke === "space") cx.stop_propagation(); })
               .child(svg(`mods/workspace-chrome/chevron-${collapsed ? "right" : "down"}.svg`).size(12).flex_none())
               .child(div().flex_1().min_w(0).truncate().font_medium().child(group.name))
-              .child(div().flex_none().child(String(group.cards.length)))))
+              .child(div().flex_none().text_color(t.muted).child(String(group.cards.length)))))
             .children(collapsed ? [] : group.cards.map(card => this.card(card, compact, t, true, selection)));
         }) : cards.map(card => this.card(card, compact, t, false, selection))))
       .when(part === "combined", el => el.child(renderSessionHistory({ rows: historyRows, groups: historyGroups, controller: history, compact, theme: t, knownPrograms: this.knownPrograms, folded: Boolean(folded.history) })));

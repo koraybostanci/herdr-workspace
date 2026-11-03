@@ -1,6 +1,6 @@
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { lstat } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { validWorkScope } from './contracts.mjs';
 
 const path=value=>typeof value==='string'&&isAbsolute(value)&&!/[\x00-\x1f\x7f]/.test(value);
@@ -38,7 +38,9 @@ async function governedDirectory(file,host) {
     }
     const next=dirname(directory);if(next===directory)break;directory=next;
   }
-  return packageRoot;
+  // A package.json inside the OS temp directory marks scratch work, not the task's project.
+  const scratch=packageRoot&&['/tmp','/private/tmp','/var/folders','/private/var/folders'].some(root=>packageRoot.startsWith(root+sep));
+  return scratch?null:packageRoot;
 }
 export async function selectWorkScope(observation,previous,canonicalDirectory,homeDirectory=homedir()) {
   const host=observation.session.host,input=observation.payload??{};

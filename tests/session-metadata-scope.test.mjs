@@ -178,3 +178,11 @@ test('project-local agent instructions are still project work',async t=>{
   await f.observe('project-rule',{tool:'write',filePath:join(f.directory,'.agents','rules.md')},'tool',2000);
   assert.equal((await f.store.read(f.key)).workScope.path,f.directory);
 });
+
+test('a package.json in an OS scratch directory is not adopted as the task project',async t=>{
+  const f=await fixture(t);
+  const scratch=join(f.root,'fs-track.ABC');await mkdir(scratch,{recursive:true});await writeFile(join(scratch,'package.json'),'{}');
+  await f.observe('scratch-write',{tool:'functions.write',filePath:join(scratch,'checklist.md')});
+  const record=await f.store.read(f.key);
+  assert.notEqual(record.workScope?.path,scratch);
+});

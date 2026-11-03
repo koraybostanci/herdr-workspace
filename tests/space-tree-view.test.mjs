@@ -77,7 +77,9 @@ test("tree agent cards are dense two-line rows in both agent views", () => {
     const declaredHeight = card.nodes.reduce((sum, row) => sum + (row.attributes.h?.[0] ?? 0), 0)
       + padding * 2 + (card.attributes.gap?.[0] ?? 0) + (card.attributes.border?.[0] ?? 0) * 2;
     assert.ok(declaredHeight <= 44, `${mode}: ${declaredHeight}px is too tall`);
-    assert.ok(text(card).includes("api · feature/change"));
+    const label = text(card);
+    assert.ok(label.includes("feature/change") && !label.includes("Detached"));
+    assert.equal(label.includes("api ·"), mode === "list", `${mode}: the repository name belongs on the card only in the list view`);
   }
 });
 
@@ -356,4 +358,12 @@ test("History folding and unfocused tree keyboard activation never select a Spac
   find(tree, "space-tree-list").attributes.on_key_down[0]({ keystroke: "down" }, context());
   find(tree, "space-tree-list").attributes.on_key_down[0]({ keystroke: "enter" }, context());
   assert.deepEqual(state.commands, []);
+});
+
+test("repository groups after the first are separated by a divider line, not a filled header", () => {
+  const view = fixture(); state.shared["space-agents.view"] = "repository";
+  const walk = (node, found = []) => { if (node?.attributes?.id?.[0]?.startsWith?.("space-agent-group-toggle-")) found.push(node); (node?.nodes ?? []).forEach(n => walk(n, found)); return found; };
+  const headers = walk(render(view));
+  assert.ok(headers.length, "group headers render");
+  assert.ok(headers.every(h => !h.attributes.bg?.length), "headers are not filled");
 });

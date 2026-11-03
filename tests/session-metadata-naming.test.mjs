@@ -147,3 +147,11 @@ test("separate hook processes cannot let an older rename overwrite a newer canon
   assert.equal(await readFile(join(f.root, "harness-title"), "utf8"), "PROJ-101 #6105 Features");
   assert.equal((await f.store.read(f.key)).canonicalTitle, "PROJ-101 #6105 Features");
 });
+
+test("a ticket prefix joined to the name by a dash or colon is replaced without leaving the separator", () => {
+  const context = { ticket: { id: "PROJ-101" }, prs: { u: { number: 7, state: "OPEN", title: "" } }, activePrUrl: "u", repo: { name: "repo" } };
+  for (const title of ["PROJ-101-refine-scaling", "PROJ-101: refine-scaling", "PROJ-101 - refine-scaling"]) {
+    const result = proposeTitle({ currentTitle: title, lastManagedTitle: null, manualOverride: false, description: title, context });
+    assert.equal(result.title, "PROJ-101 #7 refine-scaling", title);
+  }
+});

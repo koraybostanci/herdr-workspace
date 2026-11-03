@@ -2,7 +2,7 @@ export function ticketReference(value) {
   const ids = [...new Set((value ?? "").match(/\b[A-Z][A-Z0-9]*-[1-9]\d*\b/g) ?? [])];
   return { id: ids.length === 1 ? ids[0] : null, ambiguous: ids.length > 1 };
 }
-const prefix = /^\[?([A-Z][A-Z0-9]*-\d+)\]?\s*(?:#([1-9]\d*)\s*)?/;
+const prefix = /^\[?([A-Z][A-Z0-9]*-\d+)\]?(?:\s*[-:]\s*|\s*)(?:#([1-9]\d*)\s*)?/;
 export function proposeTitle({ currentTitle, lastManagedTitle, manualOverride, description, context }) {
   if (manualOverride) return { action: "pause", reason: "manual-override" };
   if (/[\x00-\x1f\x7f]/.test(currentTitle ?? "") || /[\x00-\x1f\x7f]/.test(description ?? "")) return { action: "pause", reason: "control-characters" };
