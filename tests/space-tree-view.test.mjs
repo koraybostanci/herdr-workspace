@@ -360,10 +360,10 @@ test("History folding and unfocused tree keyboard activation never select a Spac
   assert.deepEqual(state.commands, []);
 });
 
-test("repository group headers have a raised background so they stand apart from the cards", () => {
+test("repository groups after the first are separated by a divider line, not a filled header", () => {
   const view = fixture(); state.shared["space-agents.view"] = "repository";
-  const walk = node => node?.attributes?.id?.[0]?.startsWith?.("space-agent-group-toggle-") ? node : (node?.nodes ?? []).map(walk).find(Boolean);
-  const header = walk(render(view));
-  assert.ok(header, "group header renders");
-  assert.ok(header.attributes.bg?.length, "group header has a background");
+  const walk = (node, found = []) => { if (node?.attributes?.id?.[0]?.startsWith?.("space-agent-group-toggle-")) found.push(node); (node?.nodes ?? []).forEach(n => walk(n, found)); return found; };
+  const headers = walk(render(view));
+  assert.ok(headers.length, "group headers render");
+  assert.ok(headers.every(h => !h.attributes.bg?.length), "headers are not filled");
 });

@@ -473,7 +473,7 @@ export default class SpaceAgents extends View {
             cx.notify();
           }
         })
-        .children(folded.agents ? [] : grouped ? groups.map(group => {
+        .children(folded.agents ? [] : grouped ? groups.map((group, index) => {
           const collapsed = groupCollapsed(group), key = groupStateKey(group);
           const toggle = (_event, cx) => {
             const saved = shared("space-agents.groups") ?? {};
@@ -481,15 +481,16 @@ export default class SpaceAgents extends View {
             cx.stop_propagation(); cx.notify();
           };
           return v_flex().id(`space-agent-group-${key}`).w_full().flex_none().gap(this.tree ? 4 : 6).role("group")
+            .when(index > 0 && !compact, el => el.border_t(1).border_color(t.border).pt(6).mt(4))
             .accessibility_label(`${group.name}, ${group.cards.length} agents`)
             .when(!compact, el => el.child(Button.new(`space-agent-group-toggle-${key}`).w_full().h(28).px(8).gap(6).rounded(4)
-              .items_center().text_size(11.5).text_color(t.muted).bg(t.raised).cursor_pointer().tab_stop(true)
+              .items_center().text_size(11.5).text_color(t.foreground).cursor_pointer().tab_stop(true)
               .hover(el => el.bg(t.hover).text_color(t.foreground)).tooltip(group.tooltip)
               .accessibility_label(`${collapsed ? "Expand" : "Collapse"} ${group.name}`).on_click(toggle)
               .on_key_down((event, cx) => { if (event.keystroke === "enter" || event.keystroke === "space") cx.stop_propagation(); })
               .child(svg(`mods/workspace-chrome/chevron-${collapsed ? "right" : "down"}.svg`).size(12).flex_none())
               .child(div().flex_1().min_w(0).truncate().font_medium().child(group.name))
-              .child(div().flex_none().child(String(group.cards.length)))))
+              .child(div().flex_none().text_color(t.muted).child(String(group.cards.length)))))
             .children(collapsed ? [] : group.cards.map(card => this.card(card, compact, t, true, selection)));
         }) : cards.map(card => this.card(card, compact, t, false, selection))))
       .when(part === "combined", el => el.child(renderSessionHistory({ rows: historyRows, groups: historyGroups, controller: history, compact, theme: t, knownPrograms: this.knownPrograms, folded: Boolean(folded.history) })));
